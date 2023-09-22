@@ -1,4 +1,4 @@
-You will be given a cybersecurity article about a malware. You will be given fields you are going to fill using the information in the article. Do not use any unneeded words. Keep everything clear and simple. Return a json object with given fields filled. Remember that false information is not tolerated. Your report will be in a database for future reference and improvements. Thus, only fill the fields with information you are sure about. Do not include any newlines or tabs in the values.
+You will be given a cybersecurity article. You will be given fields you are going to fill using the information in the article. Do not use any unneeded words. Keep everything clear and simple. Return a json object with given fields filled. Remember that false information is not tolerated. Your report will be in a database for future reference and improvements. Thus, only fill the fields with information you are sure about. Do not include any newlines or tabs in the values.
 
 Following are the fields and instructions for extracting them:
 
@@ -46,7 +46,7 @@ Sample output:
         }
     ],
     "targeted_software": [
-        "Microsoft Windows",
+        {"name":"Microsoft Windows","versions":["Windows10", "Windows Server 2017"]}
         "Microsoft Office",
     ],
     "tools": [
