@@ -6,35 +6,96 @@ class GptClient:
     def prompt(helper : OpenCTIConnectorHelper, blog : str, apikey : str, model : str, temperature : float, prompt_version : str) -> str:
         return '''
 {
-    "title": "Storm-0978: Cyber Espionage and Ransomware Attacks with a Twist",
-    "victims": [
-        "N/A"
+    "Title": "Kegtap and Singlemalt: APT28 Uses Vintage Malware to Attack Governments and Energy Sector",
+    "Victim Country": [
+        "United States",
+        "Canada"
     ],
-    "sectors":[
-        "Government", "Finance", "Telecommunications"
+    "Victim Region": [
+        "North America"
     ],
-    "victim_location": [
-        "United States"
+    "Sectors": [
+        "Government",
+        "Energy"
     ],
-    "threat_actor": "Storm-0978",
-    "threat_actor_aliases": [
-        "DEV-0978"
+    "Threat Actors": [
+        {
+            "name": "APT28",
+            "aliases": [
+                "IRON TWILIGHT",
+                "Fancy Bear",
+                "Pawn Storm",
+                "Sofacy Group",
+                "Sednit",
+                "STRONTIUM",
+                "Tsar Team",
+                "TG-4127"
+
+
+            ]
+        },
+        {
+            "name": "Lazarus",
+            "aliases": [
+                "Hidden Cobra",
+                "Guardians of Peace"
+            ]
+        }
     ],
-    "malware": [
-        "RomCom", "Industrial Spy", "Underground", "Trigona"
+    "Actor Motivation": [
+        "Cyber Espionage",
+        "Financial Gain"
     ],
-    "targeted_software": [
-        "Microsoft Windows",
-        "Microsoft Office"
+    "Malware": [
+        {
+            "name": "Kegtap",
+            "types": [
+                "backdoor",
+                "downloader"
+            ]
+        },
+        {
+            "name": "Singlemalt",
+            "types": [
+                "downloader"
+            ]
+        }
     ],
-    "tools": [
-        "PowerShell",
-        "Cobalt Strike"
+    "Tools": [
+        "certutil",
+        "BITSAdmin"
     ],
+    "Targeted Software": [
+        {
+            "name": "Microsoft Windows",
+            "versions": [
+                "Windows10",
+                "Windows Server 2017"
+            ]
+        },
+        {
+            "name": "MySQL",
+            "versions": [
+                "v3.5.2",
+                "v3.5.3"
+            ]
+        }
+    ],
+
     "CVE": [
-        "CVE-2023-23397"
+        "CVE-2017-11882",
+        "CVE-2018-0802"
     ],
-    "TTP": ["T1499", "Endpoint Denial of Service", "T1102", "Web Service", "T1072", "Software Deployment Tools"],
+    "TTP": [
+        {
+            "name": "User Execution",
+            "id": "T1204"
+        },
+        {
+            "name": "Scripting",
+            "id": "T1064"
+        }
+    ],
     "IoC": [
         {
             "type": "file:hashes.'SHA-256'",
@@ -59,10 +120,6 @@ class GptClient:
         {
             "type": "ipv4-addr",
             "value": "112.325.13.37"
-        },
-        {
-            "type": "cryptocurrency-wallet",
-            "value": "1A1zP1eP5QGefi2DMPTfTL5SLmv7DivfNa"
         }
     ]
 }
