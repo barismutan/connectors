@@ -31,7 +31,16 @@ class Postprocessor:
             "IoC":"indicators",
             "victim_location":"locations",
             "threat_actor":"intrusion_sets",
-            "sectors":"sectors"
+            "sectors":"sectors",
+            "Title":"title",
+            "Victim Country":"victim_country",
+            "Victim Region":"victim_region",
+            "Sectors":"sectors",
+            "Threat Actors":"threat_actor",
+            "Actor Motivation":"actor_motivation",
+            "Malware":"malware",
+            "Tools":"tools",
+            "Targeted Software":"software",
             }
         
         self.file_extensions=[
@@ -67,11 +76,11 @@ class Postprocessor:
             try:
                 blog=json.loads(blog)
             except json.decoder.JSONDecodeError as e:
-                self.helper.log_error(f"Error while decoding JSON: {e}")
+                # self.helper.log_error(f"Error while decoding JSON: {e}")
                 raise self.InvalidLLMResponseException(blog)
             
             output={}
-            self.helper.log_debug(f"DEBUG DEBUG: Blog before postprocessing: \n\n {blog} \n\n")
+            # self.helper.log_debug(f"DEBUG DEBUG: Blog before postprocessing: \n\n {blog} \n\n")
 
             for field in blog.keys():
                 output_field=self.map_prompt_field_to_stix_field(field)
@@ -100,7 +109,7 @@ class Postprocessor:
                 elif output_field=="indicators":
                     output[output_field]=self.postprocess_ioc_field(blog[field])
                 else:
-                    self.helper.log_error(f"Unknown field {field}")
+                    # self.helper.log_error(f"Unknown field {field}")
                     raise self.PostProcessingException(f"Unknown field {field}")
                     #TODO: the list should be checked against all valid STIX types.
                     #Ones matching should be logged as WARNING. Others should be logged as ERROR.
@@ -110,20 +119,20 @@ class Postprocessor:
         except Exception as e:
             raise self.PostProcessingException(f"Error while postprocessing: {e}")
 
-    @DeprecationWarning
+    # @DeprecationWarning
     def postprocess_str_field(self, field : str) -> str:
         return [] if self.convert_empty_str_to_list(field)==[] else self.convert_str_to_list(field)
 
-    @DeprecationWarning
+    # @DeprecationWarning
     def convert_str_to_list(self, string : str) -> list:
-        self.helper.log_debug(f"DEBUG DEBUG: Converting string \n\n {string} \n\nto list")
+        # self.helper.log_debug(f"DEBUG DEBUG: Converting string \n\n {string} \n\nto list")
         return [item.strip() for item in string.split(",")]
     
-    @DeprecationWarning
+    # @DeprecationWarning
     def convert_empty_str_to_list(self, string : str) -> list:
         return [] if string in self.emptyish else string
     
-    @DeprecationWarning
+    # @DeprecationWarning
     def lowercase_keys(self, blog : dict) -> dict:
         return {key.lower():blog[key] for key in blog.keys()}
     
@@ -134,22 +143,22 @@ class Postprocessor:
         raise self.PostProcessingException(f"Title field is not a string: {title}")
     
     def postprocess_victim_country_field(self, victim_country : list[str]) -> list[str]:
-        if type(victim_country)==list[str]:
+        if type(victim_country)==list and all(isinstance(item, str) for item in victim_country):
             return victim_country
-        raise self.PostProcessingException(f"Victim country field is not a list of strings: {victim_country}")
+        raise self.PostProcessingException(f"Victim country field is not a list of strings: {victim_country} has type {type(victim_country)}")
     
     def postprocess_victim_region_field(self, victim_region : list[str]) -> list[str]:
-        if type(victim_region)==list[str]:
+        if type(victim_region)==list and all(isinstance(item, str) for item in victim_region):
             return victim_region
         raise self.PostProcessingException(f"Victim region field is not a list of strings: {victim_region}")
     
     def postprocess_sectors_field(self, sectors : list[str]) -> list[str]:
-        if type(sectors)==list[str]:
+        if type(sectors)==list and all(isinstance(item, str) for item in sectors):
             return sectors
         raise self.PostProcessingException(f"Sectors field is not a list of strings: {sectors}")
     
     def postprocess_threat_actor_field(self, threat_actors : list[dict]) -> list[dict]:
-        if type(threat_actors)==list[dict]:
+        if type(threat_actors)==list and all(isinstance(item, dict) for item in threat_actors):
             for element in threat_actors:
                 list_of_keys=list(element.keys())
                 if len(list_of_keys)!=2:
@@ -158,22 +167,22 @@ class Postprocessor:
                     raise self.PostProcessingException(f"A threat actor object does not have a name key: {element}")
                 if "aliases" not in list_of_keys:
                     raise self.PostProcessingException(f"A threat actor object does not have a aliases key: {element}")
-                if type(element["threat_actor"])!=str:
-                    raise self.PostProcessingException(f"A threat actor object's threat_actor field is not a string: {element}")
-                if type(element["threat_actor_aliases"])!=list[str]:
-                    raise self.PostProcessingException(f"A threat actor object's threat_actor_aliases field is not a list of strings: {element}")
+                if type(element["name"])!=str:
+                    raise self.PostProcessingException(f"A threat actor object's name field is not a string: {element}")
+                if type(element["aliases"])!=list and not all(isinstance(item, str) for item in element["aliases"]):
+                    raise self.PostProcessingException(f"A threat actor object's name field is not a list of strings: {element}")
                 
             return threat_actors
         else:
             raise self.PostProcessingException(f"Threat actor field is not a list of dictionaries: {threat_actors}")
 
     def postprocess_actor_motivation_field(self, actor_motivation : list[str]) -> list[str]:
-        if type(actor_motivation)==list[str]:
+        if type(actor_motivation)==list and all(isinstance(item, str) for item in actor_motivation):
             return actor_motivation
         raise self.PostProcessingException(f"Actor motivation field is not a list of strings: {actor_motivation}")
     
     def postprocess_malware_field(self, malware : list[dict]) -> list[dict]:
-        if type(malware)==list[dict]:
+        if type(malware)==list and all(isinstance(item, dict) for item in malware):
             for element in malware:
                 list_of_keys=list(element.keys())
                 if len(list_of_keys)!=2:
@@ -184,7 +193,7 @@ class Postprocessor:
                     raise self.PostProcessingException(f"A malware object does not have a types key: {element}")
                 if type(element["name"])!=str:
                     raise self.PostProcessingException(f"A malware object's name field is not a string: {element}")
-                if type(element["types"])!=list[str]:
+                if type(element["types"])!=list and not all(isinstance(item, str) for item in element["types"]):
                     raise self.PostProcessingException(f"A malware object's types field is not a list of strings: {element}")
                 
             return malware
@@ -192,12 +201,12 @@ class Postprocessor:
             raise self.PostProcessingException(f"Malware field is not a list of dictionaries: {malware}")
         
     def postprocess_tools_field(self, tools : list[str]) -> list[str]:
-        if type(tools)==list[str]:
+        if type(tools)==list and all(isinstance(item, str) for item in tools):
             return tools
         raise self.PostProcessingException(f"Tools field is not a list of strings: {tools}")
     
     def postprocess_software_field(self, software : list[dict]) -> list[dict]:
-        if type(software)==list[dict]:
+        if type(software)==list and all(isinstance(item, dict) for item in software):
             for element in software:
                 list_of_keys=list(element.keys())
                 if len(list_of_keys)!=2:
@@ -208,7 +217,7 @@ class Postprocessor:
                     raise self.PostProcessingException(f"A software object does not have a versions key: {element}")
                 if type(element["name"])!=str:
                     raise self.PostProcessingException(f"A software object's name field is not a string: {element}")
-                if type(element["versions"])!=list[str]:
+                if type(element["versions"])!=list and not all(isinstance(item, str) for item in element["versions"]):
                     raise self.PostProcessingException(f"A software object's versions field is not a list of strings: {element}")
                 
             return software
@@ -216,12 +225,12 @@ class Postprocessor:
             raise self.PostProcessingException(f"Software field is not a list of dictionaries: {software}")
         
     def postprocess_vulnerabilities_field(self, vulnerabilities : list[str]) -> list[str]:
-        if type(vulnerabilities)==list[str]:
+        if type(vulnerabilities)==list and all(isinstance(item, str) for item in vulnerabilities):
             return vulnerabilities
         raise self.PostProcessingException(f"Vulnerabilities field is not a list of strings: {vulnerabilities}")
     
     def postprocess_ttp_field(self, ttps : list[dict]) -> list[dict]:
-        if type(ttps) == list[dict]:
+        if type(ttps) == list and all(isinstance(item, dict) for item in ttps):
             for element in ttps:
                 list_of_keys=list(element.keys())
                 if len(list_of_keys)!=2:
@@ -240,7 +249,7 @@ class Postprocessor:
             raise self.PostProcessingException(f"TTP field is not a list of dictionaries: {ttps}")
         
     def postprocess_ioc_field(self, iocs : list[dict]) -> list[dict]:
-        if type(iocs)==list[dict]:
+        if type(iocs)==list and all(isinstance(item, dict) for item in iocs):
             for element in iocs:
                 list_of_keys=list(element.keys())
                 if len(list_of_keys)!=2:
