@@ -243,6 +243,7 @@ def create_malware(
     object_markings: List[stix2.MarkingDefinition],
     malware_id: Optional[str] = None,
     is_family: bool = False,
+    malware_types: Optional[List[str]] = None,
 ) -> stix2.Malware:
     """Create a malware."""
     if malware_id is None:
@@ -255,6 +256,7 @@ def create_malware(
         is_family=is_family,
         confidence=confidence,
         object_marking_refs=object_markings,
+        malware_types=malware_types,
     )
 
 

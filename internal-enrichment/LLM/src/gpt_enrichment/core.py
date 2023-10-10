@@ -60,9 +60,11 @@ class GptEnrichmentConnector:
     def build_malwares(self, blog : dict) -> list[stix2.Malware]:
         malware_entities = []
         for m in blog['malware']:
+            name=m['name']
+            types=m['type']
             self.helper.log_debug(f"TYPE of self.author: {type(self.author)}")
             self.helper.log_debug(f"self.author: {str(self.author)}")
-            malware_entities.append(create_malware(m,self.author,0,[]))
+            malware_entities.append(create_malware(m['name'],self.author,0,[],malware_types=types))
         return malware_entities
 
     def build_regions(self, blog : dict) -> list[stix2.Location]:
