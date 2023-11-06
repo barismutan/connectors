@@ -18,6 +18,7 @@ class Postprocessor:
             "null",
             "Null",
             "NULL",
+            ""
 
         ]
         emptyish_list_no_quote=["[{}]".format(emptyish) for emptyish in self.emptyish]
@@ -27,8 +28,13 @@ class Postprocessor:
         self.helper=helper
         self.prompt_to_stix={
             "CVE":"vulnerabilities",
+            "cves":"vulnerabilities",#TODO: not ideal
+            "cve":"vulnerabilities",#TODO: not ideal
+            "ttps":"attack_patterns",#TODO: not ideal
             "TTP":"attack_patterns",
+            "ttp":"attack_patterns",
             "IoC":"indicators",
+            "ioc":"indicators",
             "victim_location":"locations",
             "threat_actor":"intrusion_sets",
             "sectors":"sectors",
@@ -36,12 +42,21 @@ class Postprocessor:
             "Victim Country":"victim_country",
             "Victim Region":"victim_region",
             "Sectors":"sectors",
-            "Threat Actors":"threat_actor",
+            "Threat Actors":"intrusion_sets",
+            "threat_actor":"intrusion_sets",
+            "threat_actors":"intrusion_sets",
             "Actor Motivation":"actor_motivation",
             "Malware":"malware",
             "Tools":"tools",
             "Targeted Software":"software",
+            "targeted_software":"software",
+            "Victim Organization":"victim_organization",
             }
+        
+        self.str_fields=[
+            "title",
+            "victim_organization"
+        ]
         
         self.file_extensions=[
             "exe",
@@ -66,10 +81,12 @@ class Postprocessor:
         ]
 
 
+    
+
     def map_prompt_field_to_stix_field(self, field : str) -> str:
         return self.prompt_to_stix[field] if field in self.prompt_to_stix.keys() else field
 
-    def postprocess(self, blog : str) -> dict:
+    def postprocess(self, blog : str,map_prompt_field_to_stix_field: bool = True) -> dict:
         #TODO: add filtering here to get rid of filenames ".exe,.dll etc."
         #TODO: add object speficic postprocessing here
         try:
@@ -81,9 +98,35 @@ class Postprocessor:
             
             output={}
             # self.helper.log_debug(f"DEBUG DEBUG: Blog before postprocessing: \n\n {blog} \n\n")
+            blog=self.lowercase_keys_recursive(blog)
+            blog=self.underscore_keys_recursive(blog)
+            print("Blog after lowercase and underscore: " + str(blog))
 
             for field in blog.keys():
-                output_field=self.map_prompt_field_to_stix_field(field)
+                #making sure the keys are standardized
+                if map_prompt_field_to_stix_field and field not in self.prompt_to_stix.values():
+                    output_field=self.map_prompt_field_to_stix_field(field)
+                else:
+                    output_field=field
+                print("Output field: " +output_field)
+                #making sure the fields we expect as lists come out as lists and emptyish strings are converted to empty strings.
+                if output_field not in self.str_fields:
+                    blog[field]=self.convert_empty_str_to_list(blog[field])
+                    # blog[output_field]=self.convert_str_to_list(blog[output_field]) #TODO: this is a very unexpected case.
+                if output_field in self.str_fields:
+                    if self.check_str_in_emptyish(blog[field]):
+                        blog[field]=""
+                
+                #remove emptyish strings from lists
+                if output_field not in self.str_fields:
+                    blog[field]=self.remove_emptyish_strings(blog[field])
+
+
+                
+
+                # field=field.lower()
+                # print("Blog after lowercase: " + str(blog))
+
                 if output_field=="title":
                     output[output_field]=self.postprocess_title_field(blog[field])
                 elif output_field=="victim_country":
@@ -92,7 +135,10 @@ class Postprocessor:
                     output[output_field]=self.postprocess_victim_region_field(blog[field])
                 elif output_field=="sectors":
                     output[output_field]=self.postprocess_sectors_field(blog[field])
-                elif output_field=="threat_actor":
+                elif output_field=="victim_organization":
+                    print("Victim organization: " + str(blog[output_field]))
+                    output[output_field]=self.postprocess_victim_field(blog[field])
+                elif output_field=="intrusion_sets":
                     output[output_field]=self.postprocess_threat_actor_field(blog[field])
                 elif output_field=="actor_motivation":
                     output[output_field]=self.postprocess_actor_motivation_field(blog[field])
@@ -115,6 +161,8 @@ class Postprocessor:
                     #Ones matching should be logged as WARNING. Others should be logged as ERROR.
 
             output=self.lowercase_keys(output)
+            print("Final output:")
+            print(json.dumps(output,indent=4))
             return output
         except Exception as e:
             raise self.PostProcessingException(f"Error while postprocessing: {e}")
@@ -130,11 +178,61 @@ class Postprocessor:
     
     # @DeprecationWarning
     def convert_empty_str_to_list(self, string : str) -> list:
-        return [] if string in self.emptyish else string
+        return [] if self.check_str_in_emptyish(string) else string
     
-    # @DeprecationWarning
+    def check_str_in_emptyish(self, string : str) -> bool:
+        return True if string in self.emptyish else False
+    
+    def remove_emptyish_strings(self, liste : list) -> list:
+        if len(liste)==0:
+            return liste#Trivial case
+        else:
+            if type(liste[0])==str:
+                return [item for item in liste if not self.check_str_in_emptyish(item)]
+            elif type(liste[0])==dict:
+                # return [item for item in liste if not any([self.check_str_in_emptyish(str(item[key])) for key in item.keys()])] #this deletes the item altogether
+                new_items=[]
+                for item in liste:
+                    for key in item.keys():
+                        if self.check_str_in_emptyish(str(item[key])):
+                            item[key]="" if type(item[key])==str else []
+                    new_items.append(item)
+                return new_items
+
+            else:
+                raise self.PostProcessingException(f"Unknown type in list: {type(liste[0])}")
+    
+    def remove_emptyish_strings_dict(self,dictionary : dict) -> dict:
+        pass#TODO: implement this
+        
+    
+
     def lowercase_keys(self, blog : dict) -> dict:
         return {key.lower():blog[key] for key in blog.keys()}
+    
+    def lowercase_keys_recursive(self, blog : dict) -> dict:
+        '''
+        Recursively lowercases all keys in a dictionary.
+        '''
+        output={}
+        for key in blog.keys():
+            if type(blog[key])==dict:
+                output[key.lower()]=self.lowercase_keys_recursive(blog[key])
+            else:
+                output[key.lower()]=blog[key]
+        return output
+    
+    def underscore_keys_recursive(self, blog : dict) -> dict:
+        '''
+        Recursively replaces spaces in keys with underscores.
+        '''
+        output={}
+        for key in blog.keys():
+            if type(blog[key])==dict:
+                output[key.replace(" ","_")]=self.underscore_keys_recursive(blog[key])
+            else:
+                output[key.replace(" ","_")]=blog[key]
+        return output
     
 
     def postprocess_title_field(self, title : str) -> str:
@@ -236,9 +334,21 @@ class Postprocessor:
                 if len(list_of_keys)!=2:
                     raise self.PostProcessingException(f"A TTP object does not have two keys: {element}")
                 if "name" not in list_of_keys:
-                    raise self.PostProcessingException(f"A TTP object does not have a name key: {element}")
+                    if "Technique Name" in list_of_keys:
+                        element["name"]=element["Technique Name"]
+                        list_of_keys.append("name")
+                        element.pop("Technique Name")#Hardcoding for possible misspelling in LLM
+                    else:
+                        raise self.PostProcessingException(f"A TTP object does not have a name key: {element}")
+                    
                 if "id" not in list_of_keys:
-                    raise self.PostProcessingException(f"A TTP object does not have a id key: {element}")
+                    if "Technique ID" in list_of_keys:
+                        element["id"]=element["Technique ID"]
+                        list_of_keys.append("id")
+                        element.pop("Technique ID")
+                    else:
+                        raise self.PostProcessingException(f"A TTP object does not have a id key: {element}")
+                    
                 if type(element["name"])!=str:
                     raise self.PostProcessingException(f"A TTP object's name field is not a string: {element}")
                 if type(element["id"])!=str:
@@ -267,7 +377,10 @@ class Postprocessor:
         else:
             raise self.PostProcessingException(f"IOC field is not a list of dictionaries: {iocs}")
         
-
+    def postprocess_victim_field(self, victim: str) -> str:
+        if type(victim)==str:
+            return victim
+        raise self.PostProcessingException(f"Victim field is not a string: {victim}")
 
 
 

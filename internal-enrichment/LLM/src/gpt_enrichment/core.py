@@ -23,33 +23,58 @@ class GptEnrichmentConnector:
             if os.path.isfile(config_file_path)
             else {}
         )
+        print("Config: ",config)
         self.helper = OpenCTIConnectorHelper(config)
         self.temperature = get_config_variable(
             "GPT_ENRICHMENT_TEMPERATURE", ["gpt_enrichment", "temperature"], config, False, 0.0
-        )
+        ) # Deprecated
         self.model = get_config_variable(
             "GPT_ENRICHMENT_MODEL", ["gpt_enrichment", "model"], config, False, "gpt-3.5-turbo-16k"
-        )
+        ) # Deprecated
         self.apikey = get_config_variable(
             "GPT_ENRICHMENT_APIKEY", ["gpt_enrichment", "apikey"], config, False, ""
-        )
+        ) # Deprecated
 
         self.author = self.helper.api.identity.create(type="Organization", name=self._SOURCE_NAME, description="GPT-Enrichment Connector", confidence=self.helper.connect_confidence_level)['standard_id']
 
         self.prompt_version = get_config_variable(
             "GPT_ENRICHMENT_PROMPT_VERSION", ["gpt_enrichment", "prompt_version"], config, False, "v0.0.1"
-        )
+        ) # Deprecated
         self.update_existing = get_config_variable(
-            "CONNECTOR_UPDATE_EXISTING_DATA", ["connector", "update_existing"], config, False, False
+            "CONNECTOR_UPDATE_EXISTING_DATA", ["connector", "update_existing_data"], config, False, False
         )#TODO: add this to config file
 
+        api_getaway_url=get_config_variable(
+            "GPT_ENRICHMENT_API_GETAWAY_URL", ["gpt_enrichment", "api_getaway_url"], config, False, ""
+        ) #NEW
+
+        queue_url=get_config_variable(
+            "GPT_ENRICHMENT_QUEUE_URL", ["gpt_enrichment", "queue_url"], config, False, ""
+        ) #NEW
+
+        self.llm_client= GptClient(api_getaway_url,queue_url)
+
         self.fetcher= BlogFetcher()
+
+
+        self.colors={
+            "GREEN":"00FF00",
+            "RED":"FF0000",
+            "YELLOW":"FFFF00"
+        }
 
 
 
         self.lock = Lock()
         self.preprocessor= Preprocessor(self.helper)
         self.postprocessor= Postprocessor(self.helper)
+        print("---Connector config before---:")
+        print(self.helper.connector_config)
+        self.helper.connector_config['connection']['host']='localhost'
+        print("---Connector config after---:")
+        print(self.helper.connector_config)
+        print("Self.update_existing: ",self.update_existing)
+
 
     def run(self):
         # Start the main loop of the connector
@@ -61,24 +86,36 @@ class GptEnrichmentConnector:
         malware_entities = []
         for m in blog['malware']:
             name=m['name']
-            types=m['type']
+            types=m['types']
             self.helper.log_debug(f"TYPE of self.author: {type(self.author)}")
             self.helper.log_debug(f"self.author: {str(self.author)}")
             malware_entities.append(create_malware(m['name'],self.author,0,[],malware_types=types))
         return malware_entities
 
-    def build_regions(self, blog : dict) -> list[stix2.Location]:
+    def build_regions(self, blog : dict) -> list[stix2.Location]: #TODO: split this into create_country and create_region
         region_entities = []
-        for r in blog['locations']:
-            region_entities.append(create_country(r,self.author)) #TODO: in utils only create_country is availale rn, later need to implement and change to create_region.
+        for r in blog['victim_region']:
+            region_entities.append(create_region(r,self.author)) #TODO: in utils only create_country is availale rn, later need to implement and change to create_region.
         return region_entities
+    
+    def build_countries(self, blog : dict) -> list[stix2.Location]:
+        country_entities = []
+        for c in blog['victim_country']:
+            country_entities.append(create_country(c,self.author))
+        return country_entities
+
 
     def build_victims(self, blog : dict) -> list[stix2.Identity]:
         # return [] #TODO: add this
-        victim_entities = []
-        for v in blog['victims']:
-            victim_entities.append(create_organization(v,self.author)) #TODO:not sure about this.
-        return victim_entities
+        # victim_entities = []
+        # for v in blog['victims']:
+        #     victim_entities.append(create_organization(v,self.author)) #TODO:not sure about this.
+        # return victim_entities
+        if blog['victim_organization'] == "": #checking against no victim found case
+            return []
+        victim=create_organization(blog['victim_organization'],self.author)
+        print("victim: ",victim)
+        return [victim]
         
         
 
@@ -92,7 +129,9 @@ class GptEnrichmentConnector:
     def build_attack_patterns(self, blog : dict) -> list[stix2.AttackPattern]:
         attack_pattern_entities = []
         for ap in blog['attack_patterns']:
-            attack_pattern_entities.append(create_attack_pattern(ap,self.author,0,[]))
+            name=ap['name']
+            tid=ap['id']#NOTE: this could be useless (it is the mitre id.)
+            attack_pattern_entities.append(create_attack_pattern(name,self.author,0,[],[]))
         return attack_pattern_entities
         
         
@@ -100,8 +139,11 @@ class GptEnrichmentConnector:
 
     def build_intrusion_sets(self, blog : dict) -> list[stix2.IntrusionSet]:
         intrusion_set_entities = []
+        actor_motivations=blog['actor_motivation']
         for iset in blog['intrusion_sets']:
-            intrusion_set_entities.append(create_intrusion_set(iset,self.author,0,[]))
+            name=iset['name']
+            aliases=iset['aliases']
+            intrusion_set_entities.append(create_intrusion_set(name,self.author,0,[],aliases=aliases,secondary_motivations=actor_motivations))
         return intrusion_set_entities
     
     #TODO: add Report.
@@ -112,11 +154,19 @@ class GptEnrichmentConnector:
             vulnerability_entities.append(create_vulnerability(v,self.author,0,[],[]))
         return vulnerability_entities
     
-    def build_attack_patterns(self, blog : dict) -> list[stix2.AttackPattern]:
-        attack_pattern_entities = []
-        for ap in blog['attack_patterns']:
-            attack_pattern_entities.append(create_attack_pattern(ap,self.author,0,[],[]))
-        return attack_pattern_entities
+    def build_tools(self, blog : dict) -> list[stix2.Tool]:
+        tool_entities = []
+        for t in blog['tools']:
+            tool_entities.append(create_tool(t,self.author,0,[],[]))
+        return tool_entities
+    
+    # def build_softwares(self, blog : dict) -> list[stix2.Software]:
+    #     software_entities = []
+    #     for s in blog['software']:
+    #         name=s['name']
+    #         for v in s['versions']:
+    #             software_entities.append(create_software(name,self.author,0,[],v))
+    
 
     def build_reports(self, entities : list) -> list[stix2.Report]:
 
@@ -141,9 +191,21 @@ class GptEnrichmentConnector:
             []
 
         )
+    
+    def build_malware_country_relationships(self, malwares,countries) -> list[stix2.Relationship]:
+            
+            return create_relationships(
+                "targets",
+                self.author,
+                malwares,
+                countries,
+                0,
+                []
+            )
 
     def build_malware_victim_relationships(self, malwares,victims ) -> list[stix2.Relationship]:
-
+        print("malwares: ",malwares)
+        print("victims: ",victims)
         return create_relationships(
             "targets",
             self.author,
@@ -187,6 +249,17 @@ class GptEnrichmentConnector:
             0,
             []
         )
+    
+    def build_tool_intrusion_set_relationships(self,  tools,intrusion_sets) -> list[stix2.Relationship]:
+            
+            return create_relationships(
+                "uses",
+                self.author,
+                intrusion_sets,
+                tools,
+                0,
+                []
+            )
 
 
     def build_region_victim_relationships(self, regions,victims) -> list[stix2.Relationship]:
@@ -199,6 +272,17 @@ class GptEnrichmentConnector:
             0,
             []
         )
+    
+    def build_country_victim_relationships(self, countries,victims) -> list[stix2.Relationship]:
+         
+            return create_relationships(
+                "located-at",
+                self.author,
+                victims,
+                countries,
+                0,
+                []
+            )
 
 
     # def build_region_industry(self, blog : dict) -> list: # This is dumb.
@@ -214,6 +298,18 @@ class GptEnrichmentConnector:
             0,
             []
         )
+    
+    def build_country_attack_pattern_relationships(self, countries,attack_patterns) -> list[stix2.Relationship]:
+                
+                return create_relationships(
+                    "targets",
+                    self.author,
+                    attack_patterns,
+                    countries,
+                    0,
+                    []
+                )
+    
 
 
     def build_region_intrusion_set_relationships(self, regions,intrusion_sets) -> list[stix2.Relationship]:
@@ -226,6 +322,17 @@ class GptEnrichmentConnector:
             0,
             []
         )
+    
+    def build_country_intrusion_set_relationships(self, countries,intrusion_sets) -> list[stix2.Relationship]:
+                    
+                    return create_relationships(
+                        "targets",
+                        self.author,
+                        intrusion_sets,
+                        countries,
+                        0,
+                        []
+                    )
 
     def build_victim_industry_relationships(self, victims,industries) -> list[stix2.Relationship]:
         return create_relationships(
@@ -350,6 +457,16 @@ class GptEnrichmentConnector:
                 0,
                 []
             )
+    
+    # def build_software_vulnerability_relationships(self, softwares,vulnerabilities) -> list[stix2.Relationship]:
+    #         return create_relationships(
+    #             "targets",
+    #             self.author,
+    #             softwares,
+    #             vulnerabilities,
+    #             0,
+    #             []
+    #         )
 
 
 
@@ -358,19 +475,23 @@ class GptEnrichmentConnector:
     def build_entities(self, blog : dict) -> list: #TODO: add type in annotation
         malware_entites = self.build_malwares(blog)
         region_entities = self.build_regions(blog)
+        country_entities= self.build_countries(blog)
         victim_entities = self.build_victims(blog)
         industry_entities = self.build_industries(blog)
         attack_pattern_entities = self.build_attack_patterns(blog)
         vulnerability_entities = self.build_vulnerabilities(blog)
         intrusion_set_entities = self.build_intrusion_sets(blog)
+        # software_entities = self.build_softwares(blog)
         return {
             "malware": malware_entites,
-            "locations": region_entities,
+            "regions": region_entities,
+            "countries": country_entities,
             "victims": victim_entities,
             "sectors": industry_entities,
             "attack_patterns": attack_pattern_entities,
             "intrusion_sets": intrusion_set_entities,
-            "vulnerabilities": vulnerability_entities
+            "vulnerabilities": vulnerability_entities,
+            # "software": software_entities
         }
 
     def build_relationships(self,entities, previous_entities,connect_previous_entities=False) -> list[stix2.Relationship]: #TODO: add attack pattern relationships
@@ -381,14 +502,18 @@ class GptEnrichmentConnector:
             pass
         else:
             pass
-        malware_region_relationships = self.build_malware_region_relationships(entities["malware"],entities["locations"])
+        malware_region_relationships = self.build_malware_region_relationships(entities["malware"],entities["regions"])#split to create_malware_region_relationships and create_malware_country_relationships
+        malware_country_relationships = self.build_malware_country_relationships(entities["malware"],entities["countries"])
         malware_victim_relationships = self.build_malware_victim_relationships(entities["malware"],entities["victims"])
         malware_industry_relationships = self.build_malware_industry_relationships(entities["malware"],entities["sectors"])
         malware_attack_pattern_relationships = self.build_malware_attack_pattern_relationships(entities["malware"],entities["attack_patterns"])
         malware_intrusion_set_relationships = self.build_malware_intrusion_set_relationships(entities["malware"],entities["intrusion_sets"])
-        region_victim_relationships = self.build_region_victim_relationships(entities["locations"],entities["victims"])
-        region_attack_pattern_relationships = self.build_region_attack_pattern_relationships(entities["locations"],entities["attack_patterns"])
-        region_intrusion_set_relationships = self.build_region_intrusion_set_relationships(entities["locations"],entities["intrusion_sets"])
+        region_victim_relationships = self.build_region_victim_relationships(entities["regions"],entities["victims"])
+        country_victim_relationships = self.build_country_victim_relationships(entities["countries"],entities["victims"])
+        region_attack_pattern_relationships = self.build_region_attack_pattern_relationships(entities["regions"],entities["attack_patterns"])
+        country_attack_pattern_relationships = self.build_country_attack_pattern_relationships(entities["countries"],entities["attack_patterns"])
+        region_intrusion_set_relationships = self.build_region_intrusion_set_relationships(entities["regions"],entities["intrusion_sets"])
+        country_intrusion_set_relationships = self.build_country_intrusion_set_relationships(entities["countries"],entities["intrusion_sets"])
         victim_industry_relationships = self.build_victim_industry_relationships(entities["victims"],entities["sectors"])
         victim_attack_pattern_relationships = self.build_victim_attack_pattern_relationships(entities["victims"],entities["attack_patterns"])
         victim_intrusion_set_relationships = self.build_victim_intrusion_set_relationships(entities["victims"],entities["intrusion_sets"])
@@ -401,17 +526,23 @@ class GptEnrichmentConnector:
         intrusion_set_victim_relationships = self.build_intrusion_set_organization_relationships(entities["intrusion_sets"],entities["victims"])
         victim_malware_relationships = self.build_victim_malware_relationships(entities["victims"],entities["malware"])
         victim_vulnerability_relationships = self.build_victim_vulnerability_relationships(entities["victims"],entities["vulnerabilities"])
+        # software_vulnerability_relationships = self.build_software_vulnerability_relationships(entities["software"],entities["vulnerabilities"])
+        #To add: vulnerability-software relationship
         return {
             "malware_region": malware_region_relationships,
+            "malware_country": malware_country_relationships,
             "malware_victim": malware_victim_relationships,
             "malware_industry": malware_industry_relationships,
             "malware_attack_pattern": malware_attack_pattern_relationships,
             "malware_intrusion_set": malware_intrusion_set_relationships,
             "malware_vulnerability": malware_vulnerability_relationships,
             "region_victim": region_victim_relationships,
+            "country_victim": country_victim_relationships,
             # "region_industry": region_industry_relationships,
             "region_attack_pattern": region_attack_pattern_relationships,
+            "country_attack_pattern": country_attack_pattern_relationships,
             "region_intrusion_set": region_intrusion_set_relationships,
+            "country_intrusion_set": country_intrusion_set_relationships,
             "victim_industry": victim_industry_relationships,
             "victim_attack_pattern": victim_attack_pattern_relationships,
             "victim_intrusion_set": victim_intrusion_set_relationships,
@@ -422,7 +553,8 @@ class GptEnrichmentConnector:
             "intrusion_set_vulnerability": intrusion_set_vulnerability_relationships,
             "intrusion_set_organization": intrusion_set_victim_relationships,
             "victim_malware": victim_malware_relationships,
-            "victim_vulnerability": victim_vulnerability_relationships
+            "victim_vulnerability": victim_vulnerability_relationships,
+            # "software_vulnerability": software_vulnerability_relationships
 
         }
     
@@ -432,7 +564,10 @@ class GptEnrichmentConnector:
 
 
     def build_stix_bundle(self, entities:dict,relationships:dict) -> stix2.Bundle: #TODO: build function in builder.py in AV connector is pretty good, later we can use that.
-        self.helper.log_info(f"Bundling {len(entities)} entities and {len(relationships)}")
+        # self.helper.log_info(f"Bundling {len(entities)} entities and {len(relationships)}")
+        num_entities = len([entity_package for entity_package in entities.values()]) #TODO:this doesnt work, need to fix.
+        num_relationships = len([relationship_package for relationship_package in relationships.values()])
+        self.helper.log_info(f"Bundling {num_entities} entities and {num_relationships} relationships")
         entities_list = list(entities.values())
         relationships_list = list(relationships.values())
         object_refs=create_object_refs(
@@ -468,22 +603,75 @@ class GptEnrichmentConnector:
         self.helper.send_stix2_bundle(serialized_bundle,update=self.update_existing,work_id=work_id)
         
 
+
+
+    ##Labelling process of the objects
+    def create_label(self,tag:str, color:str) -> None:#TODO: find the type for a tag
+        self.helper.log_info(f"Creating label: {tag}")
+        tag=self.helper.api.label.create(
+             value=tag,
+             color=color
+        )
+        return tag
+
+
+    def label_report(self, report:stix2.Report,success:bool) -> None:
+        labelling_success=False
+        if success:
+            self.helper.log_info(f"Labelling report: {report['id']} as successful enrichment.")
+            label=self.create_label("gpt-enrichment-success",self.colors["GREEN"])
+            labelling_success=self.helper.api.stix_domain_object.add_label(id=report['id'],label_id=label['id']) #it might be the case that this is a core object
+        else:
+            self.helper.log_info(f"Labelling report: {report['id']} as failed enrichment.")
+            label=self.create_label("gpt-enrichment-failed",self.colors["RED"])
+            labelling_success=self.helper.api.stix_domain_object.add_label(id=report['id'],label_id=label['id'])
+        
+        if labelling_success:
+            self.helper.log_info(f"Successfully labelled report: {report['id']}")
+        else:
+            self.helper.log_error(f"Failed to label report: {report['id']}")
+
+        return
+    
+ 
+    def label_entity(self, entity:stix2.v21._DomainObject) -> None:
+         pass
+    
+    def label_relationship(self, relationship:stix2.v21._RelationshipObject,) -> None:
+         pass
+    
+    def label_entities(self,entities:list[stix2.v21._DomainObject]) -> None:
+        pass
+
+    def label_relationships(self,relationships:list[stix2.v21._RelationshipObject]) -> None:
+        pass
+
+    ## ----------------- ##
+    
+
         
     def start_enrichment(self, data):
+        self.lock.acquire(blocking=True)
         entity_id = data["entity_id"]
+        print(json.dumps(
+             data, indent=4
+             )
+            )
         report = self.helper.api.report.read(id=entity_id)
         if report is None:
             raise ValueError("Report not found")
-        self.lock.acquire()
+        
         try:
             for external_reference in report["externalReferences"]:
                 if external_reference["url"].startswith("https://otx.alienvault"):
                     continue
+                # self.helper.api.work.to_received()
                 blog_html = self.fetcher.get_html(self.helper, external_reference["url"])
 
 
                 blog = self.preprocessor.preprocess(blog_html)
-                gpt_response = GptClient.prompt(self.helper, blog, self.apikey, self.model, self.temperature, self.prompt_version)
+                # print("blog: ",blog)
+                gpt_response = self.llm_client.prompt(self.helper, entity_id,blog)
                 gpt_response_postprocessed = self.postprocessor.postprocess(gpt_response)
                 note_body = f"Temperature: {self.temperature}\nModel: {self.model}\nPrompt: {self.prompt_version}\n```\n" + json.dumps(gpt_response_postprocessed,indent=4) + "\n```"
                 
@@ -535,13 +723,17 @@ class GptEnrichmentConnector:
                 #             objects=[entity_id],
                 #         )
                 # self.helper.log_info("Created a regex extractor note for external reference: " + external_reference["url"])
+            
+            self.label_report(report,True)
             self.lock.release()
             return "Sent {} entities and {} relationships for worker import.".format(len(entities), len(relationships))
         except Exception as e:
+            self.label_report(report,False)
             self.lock.release()
             raise ValueError("Error during enrichment: " + str(e))
 
     
 #TODO: Add Vulnerability,Attack Pattern, Indicator info.
+#TODO: add indicator indicates intrusion-set info
 
     
