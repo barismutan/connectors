@@ -6,12 +6,15 @@ FROM python:3.11-alpine
 # hadolint ignore=DL3003
 RUN apk --no-cache add git build-base libmagic libffi-dev libxml2-dev libxslt-dev
 
-# Copy the connector
-COPY src /opt/gpt-enrichment
+# Copy the connector <<-- If we split the part below to two commands, we can speed up the build process
+COPY src/requirements.txt /opt/gpt-enrichment/requirements.txt
 
 RUN cd /opt/gpt-enrichment && \
     pip3 install --no-cache-dir -r requirements.txt && \
     apk del git build-base
+
+COPY src /opt/gpt-enrichment
+
 
 
 

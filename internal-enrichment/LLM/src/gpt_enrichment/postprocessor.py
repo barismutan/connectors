@@ -100,7 +100,8 @@ class Postprocessor:
             # self.helper.log_debug(f"DEBUG DEBUG: Blog before postprocessing: \n\n {blog} \n\n")
             blog=self.lowercase_keys_recursive(blog)
             blog=self.underscore_keys_recursive(blog)
-            print("Blog after lowercase and underscore: " + str(blog))
+            # print("Blog after lowercase and underscore: " + str(blog))
+            self.helper.log_debug(f"Blog after lowercase and underscore: \n\n {blog} \n\n")
 
             for field in blog.keys():
                 #making sure the keys are standardized
@@ -108,7 +109,7 @@ class Postprocessor:
                     output_field=self.map_prompt_field_to_stix_field(field)
                 else:
                     output_field=field
-                print("Output field: " +output_field)
+                # print("Output field: " +output_field)
                 #making sure the fields we expect as lists come out as lists and emptyish strings are converted to empty strings.
                 if output_field not in self.str_fields:
                     blog[field]=self.convert_empty_str_to_list(blog[field])
@@ -136,7 +137,7 @@ class Postprocessor:
                 elif output_field=="sectors":
                     output[output_field]=self.postprocess_sectors_field(blog[field])
                 elif output_field=="victim_organization":
-                    print("Victim organization: " + str(blog[output_field]))
+                    # print("Victim organization: " + str(blog[output_field]))
                     output[output_field]=self.postprocess_victim_field(blog[field])
                 elif output_field=="intrusion_sets":
                     output[output_field]=self.postprocess_threat_actor_field(blog[field])
@@ -161,8 +162,9 @@ class Postprocessor:
                     #Ones matching should be logged as WARNING. Others should be logged as ERROR.
 
             output=self.lowercase_keys(output)
-            print("Final output:")
-            print(json.dumps(output,indent=4))
+            # print("Final output:")
+            # print(json.dumps(output,indent=4))
+            self.helper.log_debug(f"Final output: \n\n {json.dumps(output,indent=4)} \n\n")
             return output
         except Exception as e:
             raise self.PostProcessingException(f"Error while postprocessing: {e}")

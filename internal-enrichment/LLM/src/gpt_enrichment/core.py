@@ -23,7 +23,7 @@ class GptEnrichmentConnector:
             if os.path.isfile(config_file_path)
             else {}
         )
-        print("Config: ",config)
+        # print("Config: ",config)
         self.helper = OpenCTIConnectorHelper(config)
         self.temperature = get_config_variable(
             "GPT_ENRICHMENT_TEMPERATURE", ["gpt_enrichment", "temperature"], config, False, 0.0
@@ -63,17 +63,22 @@ class GptEnrichmentConnector:
             "YELLOW":"FFFF00"
         }
 
+        self.connector_dockerized=get_config_variable(
+            "CONNECTOR_DOCKERIZED", ["connector", "dockerized"], config, False, False
+        )
+
 
 
         self.lock = Lock()
         self.preprocessor= Preprocessor(self.helper)
         self.postprocessor= Postprocessor(self.helper)
-        print("---Connector config before---:")
-        print(self.helper.connector_config)
-        self.helper.connector_config['connection']['host']='localhost'
-        print("---Connector config after---:")
-        print(self.helper.connector_config)
-        print("Self.update_existing: ",self.update_existing)
+        # print("---Connector config before---:")
+        # print(self.helper.connector_config)
+        if not self.connector_dockerized:
+            self.helper.connector_config['connection']['host']='localhost'
+        # print("---Connector config after---:")
+        # print(self.helper.connector_config)
+        # print("Self.update_existing: ",self.update_existing)
 
 
     def run(self):
@@ -114,7 +119,7 @@ class GptEnrichmentConnector:
         if blog['victim_organization'] == "": #checking against no victim found case
             return []
         victim=create_organization(blog['victim_organization'],self.author)
-        print("victim: ",victim)
+        # print("victim: ",victim)
         return [victim]
         
         
@@ -204,8 +209,8 @@ class GptEnrichmentConnector:
             )
 
     def build_malware_victim_relationships(self, malwares,victims ) -> list[stix2.Relationship]:
-        print("malwares: ",malwares)
-        print("victims: ",victims)
+        # print("malwares: ",malwares)
+        # print("victims: ",victims)
         return create_relationships(
             "targets",
             self.author,
@@ -653,10 +658,10 @@ class GptEnrichmentConnector:
     def start_enrichment(self, data):
         self.lock.acquire(blocking=True)
         entity_id = data["entity_id"]
-        print(json.dumps(
-             data, indent=4
-             )
-            )
+        # print(json.dumps(
+        #      data, indent=4
+        #      )
+        #     )
         report = self.helper.api.report.read(id=entity_id)
         if report is None:
             raise ValueError("Report not found")
@@ -671,6 +676,7 @@ class GptEnrichmentConnector:
 
                 blog = self.preprocessor.preprocess(blog_html)
                 # print("blog: ",blog)
+                #deneme
                 gpt_response = self.llm_client.prompt(self.helper, entity_id,blog)
                 gpt_response_postprocessed = self.postprocessor.postprocess(gpt_response)
                 note_body = f"Temperature: {self.temperature}\nModel: {self.model}\nPrompt: {self.prompt_version}\n```\n" + json.dumps(gpt_response_postprocessed,indent=4) + "\n```"
