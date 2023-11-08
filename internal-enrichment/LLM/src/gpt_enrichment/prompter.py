@@ -9,7 +9,7 @@ import json
 import random
 
 class GptClient:
-    def __init__(self, api_getaway, output_queue):
+    def __init__(self, api_getaway:str, output_queue:str):
         self.sqs_client = boto3.client('sqs', region_name='us-east-1')
         self.api_getaway = api_getaway
         self.output_queue = output_queue
@@ -82,7 +82,7 @@ class GptClient:
 
         return response
     
-    def make_request(self,helper:OpenCTIConnectorHelper,report_id, report_content,custom_prompt=None):
+    def make_request(self,helper:OpenCTIConnectorHelper,report_id:str, report_content:str,custom_prompt:bool = None):
         full_url = self.api_getaway.format(report_id)
         print("Making request to {}".format(full_url))
         headers = {"Content-Type": "application/json; charset=utf-8"}
