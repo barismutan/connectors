@@ -67,6 +67,10 @@ class GptEnrichmentConnector:
             "CONNECTOR_DOCKERIZED", ["connector", "dockerized"], config, False, False
         )
 
+        self.use_test_prompt=get_config_variable(
+            "GPT_ENRICHMENT_USE_TEST_PROMPT", ["gpt_enrichment", "use_test_prompt"], config, False, False
+        )
+
 
 
         self.lock = Lock()
@@ -677,7 +681,7 @@ class GptEnrichmentConnector:
                 blog = self.preprocessor.preprocess(blog_html)
                 # print("blog: ",blog)
                 #deneme
-                gpt_response = self.llm_client.prompt(self.helper, entity_id,blog)
+                gpt_response = self.llm_client.prompt(self.helper, entity_id,blog,test_mode=self.use_test_prompt)
                 gpt_response_postprocessed = self.postprocessor.postprocess(gpt_response)
                 note_body = f"Temperature: {self.temperature}\nModel: {self.model}\nPrompt: {self.prompt_version}\n```\n" + json.dumps(gpt_response_postprocessed,indent=4) + "\n```"
                 
