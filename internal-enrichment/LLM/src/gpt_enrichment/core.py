@@ -663,17 +663,22 @@ class GptEnrichmentConnector:
     ## ----------------- ##
     
     ##Report duplication function
-    def create_bundle_with_new_report(self,old_report,entities:list[stix2.v21._DomainObject],relationships:list[stix2.Relationship]) -> None:
-        new_report=stix2.Report(
-            name=str("LLM-Generated" + old_report['name']),
-            description=str("" + old_report['description']),
-            published=old_report['published'],
-            object_refs=create_object_refs(
-                entities,
-                relationships
+    def create_bundle_with_new_report(self,old_report,entities:dict[str,stix2.v21._DomainObject],relationships:dict[str,stix2.Relationship]) -> None:
+        print("entity types:" +str([type(entity) for entity in entities.values()]))
+        entities_unpacked=[entity for entity in entities.values() for entity in entity]
+        print("unpacked entity types:" +str([type(entity) for entity in entities_unpacked]))
+        relationships_unpacked=[relationship for relationship in relationships.values() for relationship in relationship]
+        # print(json.dumps(entities_unpacked,indent=4))
+        new_report=create_report(
+            "LLM Generated-- "+old_report['name'],
+            old_report['published'],
+            objects=create_object_refs(
+                entities_unpacked,
+                relationships_unpacked
             )
         )
-        new_bundle=self.build_stix_bundle(entities + new_report,relationships)
+        entities['reports']=[new_report]
+        new_bundle=self.build_stix_bundle(entities,relationships)
         return new_bundle
         
     
@@ -726,7 +731,8 @@ class GptEnrichmentConnector:
                 ##-----------------##
 
                 #Send the bundle to OpenCTI
-                
+                # test=self.build_stix_bundle(entities,relationships)
+                # print(json.dumps(test,indent=4))
                 
                 if self.duplicate_report:
                     bundle_with_new_report=self.create_bundle_with_new_report(report,entities,relationships)#TODO  
