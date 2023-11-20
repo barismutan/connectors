@@ -70,6 +70,11 @@ class GptEnrichmentConnector:
         self.use_test_prompt=get_config_variable(
             "GPT_ENRICHMENT_USE_TEST_PROMPT", ["gpt_enrichment", "use_test_prompt"], config, False, False
         )
+        
+        self.duplicate_report=get_config_variable(
+            "GPT_ENRICHMENT_DUPLICATE_REPORT", ["gpt_enrichment", "duplicate_report"], config, False, False
+        )
+            
 
 
 
@@ -657,6 +662,30 @@ class GptEnrichmentConnector:
 
     ## ----------------- ##
     
+    ##Report duplication function
+    def create_bundle_with_new_report(self,old_report,entities:list[stix2.v21._DomainObject],relationships:list[stix2.Relationship]) -> None:
+        new_report=stix2.Report(
+            name=str("LLM-Generated" + old_report['name']),
+            description=str("" + old_report['description']),
+            published=old_report['published'],
+            object_refs=create_object_refs(
+                entities,
+                relationships
+            )
+        )
+        new_bundle=self.build_stix_bundle(entities + new_report,relationships)
+        return new_bundle
+        
+    
+    def update_report_objects(self,stix_bundle,report_id) -> None:
+        for object in stix_bundle['objects']:
+            try:
+                self.helper.log_debug(f"DEBUG DEBUG: Object: {object}, Type of object: {type(object)}")
+                self.helper.api.report.add_stix_object_or_stix_relationship(id=report_id, stixObjectOrStixRelationshipId=object["id"]) #TODO: this line throws "MissingReferenceError" every first run, fix later
+            except Exception as e:
+                self.helper.log_debug(f"DEBUG DEBUG: Exception: {e}")
+                continue
+    
 
         
     def start_enrichment(self, data):
@@ -692,22 +721,20 @@ class GptEnrichmentConnector:
                 self.helper.log_debug(f"Entities: {entities}")
                 relationships = self.build_relationships(entities, gpt_response_postprocessed)
                 self.helper.log_debug(f"Relationships: {relationships}")
-                stix_bundle = self.build_stix_bundle(entities,relationships)
+                
+
                 ##-----------------##
 
-
                 #Send the bundle to OpenCTI
-                self.send_bundle(stix_bundle)
-
-                self.helper.log_debug(f"DEBUG DEBUG: stix_bundle: {stix_bundle}")
-
-                for object in stix_bundle['objects']:
-                    try:
-                        self.helper.log_debug(f"DEBUG DEBUG: Object: {object}, Type of object: {type(object)}")
-                        self.helper.api.report.add_stix_object_or_stix_relationship(id=entity_id, stixObjectOrStixRelationshipId=object["id"]) #TODO: this line throws "MissingReferenceError" every first run, fix later
-                    except Exception as e:
-                        self.helper.log_debug(f"DEBUG DEBUG: Exception: {e}")
-                        continue
+                
+                
+                if self.duplicate_report:
+                    bundle_with_new_report=self.create_bundle_with_new_report(report,entities,relationships)#TODO  
+                    self.send_bundle(bundle_with_new_report)
+                else:
+                    stix_bundle = self.build_stix_bundle(entities,relationships)
+                    self.send_bundle(stix_bundle)
+                    self.update_report_objects(stix_bundle,report['id'])
 
 
 
