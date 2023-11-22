@@ -21,10 +21,19 @@ from stix2 import (
     IPv6Address,
     MarkingDefinition,
     Mutex,
+    Indicator,
+    Relationship
 )
+from stix2.v21 import _Observable
 from stix2.properties import ListProperty  # type: ignore # noqa: E501
 from stix2.properties import ReferenceProperty, StringProperty
 
+class Observation(NamedTuple):
+    """Observation."""
+
+    observable: Optional[_Observable]
+    indicator: Optional[Indicator]
+    relationship: Optional[Relationship]
 
 def _get_default_custom_properties(
     created_by: Optional[Identity] = None,
@@ -50,6 +59,8 @@ class ObservableProperties(NamedTuple):
     created_by: Identity
     labels: List[str]
     object_markings: List[MarkingDefinition]
+
+
 
 
 def _get_custom_properties(properties: ObservableProperties) -> Mapping[str, Any]:
