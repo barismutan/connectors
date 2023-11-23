@@ -805,22 +805,18 @@ class GptEnrichmentConnector:
                 
 
                 #deneme
-                # gpt_response = self.llm_client.prompt(self.helper, entity_id,blog,test_mode=self.use_test_prompt)
-                # gpt_response_postprocessed = self.postprocessor.postprocess(gpt_response)
-                # note_body = f"Temperature: {self.temperature}\nModel: {self.model}\nPrompt: {self.prompt_version}\n```\n" + json.dumps(gpt_response_postprocessed,indent=4) + "\n```"
-                
+                gpt_response = self.llm_client.prompt(self.helper, entity_id,blog,test_mode=self.use_test_prompt)
+                gpt_response_postprocessed = self.postprocessor.postprocess(gpt_response)
                 
                 ##-----------------## Extract entities, relationships and build stix bundle
                 self.helper.log_debug(f"Blog (after preprocessing): {blog}")
-                # entities = self.build_entities(gpt_response_postprocessed)
+                entities = self.build_entities(gpt_response_postprocessed)
                 entities={}
-                # self.helper.log_debug(f"Entities: {entities}")
-                # relationships = self.build_relationships(entities, gpt_response_postprocessed)
+
+                relationships = self.build_relationships(entities, gpt_response_postprocessed)
                 relationships={}
-                # self.helper.log_debug(f"Relationships: {relationships}")
-                gpt_response_postprocessed={
-                    "observables": self.regex_extractor.extract_all(blog)
-                }
+
+
                 observables = self.build_observables(gpt_response_postprocessed)
                 
                 #NOTE:Uncomment above part later
@@ -831,8 +827,7 @@ class GptEnrichmentConnector:
 
                 ##-----------------##
 
-                #Send the bundle to OpenCTI
-                # test=self.build_stix_bundle(entities,relationships)
+
                 
 
                 
