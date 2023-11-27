@@ -573,6 +573,7 @@ class GptEnrichmentConnector:
             pass
         else:
             pass
+
         malware_region_relationships = self.build_malware_region_relationships(entities["malware"],entities["regions"])#split to create_malware_region_relationships and create_malware_country_relationships
         malware_country_relationships = self.build_malware_country_relationships(entities["malware"],entities["countries"])
         malware_victim_relationships = self.build_malware_victim_relationships(entities["malware"],entities["victims"])
@@ -630,6 +631,7 @@ class GptEnrichmentConnector:
         }
         
     def build_observables(self, blog : dict) -> list[stix2.Indicator]:
+        print("Blog in build_observables: ",json.dumps(blog,indent=4))
         file_observables=self.build_file_observables(blog)
         #...
         return {
@@ -811,12 +813,10 @@ class GptEnrichmentConnector:
                 ##-----------------## Extract entities, relationships and build stix bundle
                 self.helper.log_debug(f"Blog (after preprocessing): {blog}")
                 entities = self.build_entities(gpt_response_postprocessed)
-                entities={}
 
                 relationships = self.build_relationships(entities, gpt_response_postprocessed)
-                relationships={}
 
-
+                gpt_response_postprocessed['observables']=self.regex_extractor.extract_all(blog)
                 observables = self.build_observables(gpt_response_postprocessed)
                 
                 #NOTE:Uncomment above part later
