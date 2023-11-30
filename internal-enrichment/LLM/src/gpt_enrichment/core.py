@@ -76,6 +76,10 @@ class GptEnrichmentConnector:
         self.duplicate_report=get_config_variable(
             "GPT_ENRICHMENT_DUPLICATE_REPORT", ["gpt_enrichment", "duplicate_report"], config, False, False
         )
+        
+        self.create_malware_indicator_relationships=get_config_variable(
+            "GPT_ENRICHMENT_CREATE_MALWARE_INDICATOR_RELATIONSHIPS", ["gpt_enrichment", "create_malware_indicator_relationships"], config, False, False
+        ) #This will only be used to create relationships between malware and indicators iff only 1 malware is found in the blog.
             
 
 
@@ -539,6 +543,16 @@ class GptEnrichmentConnector:
     #             []
     #         )
 
+    def build_indicator_malware_relationships(self, indicators,malwares) -> list[stix2.Relationship]:
+            return create_relationships(
+                "indicates",
+                self.author,
+                indicators,
+                malwares,
+                0,
+                []
+            )
+
 
 
     ## ----------------- ##
@@ -598,6 +612,7 @@ class GptEnrichmentConnector:
         intrusion_set_victim_relationships = self.build_intrusion_set_organization_relationships(entities["intrusion_sets"],entities["victims"])
         victim_malware_relationships = self.build_victim_malware_relationships(entities["victims"],entities["malware"])
         victim_vulnerability_relationships = self.build_victim_vulnerability_relationships(entities["victims"],entities["vulnerabilities"])
+        
         # software_vulnerability_relationships = self.build_software_vulnerability_relationships(entities["software"],entities["vulnerabilities"])
         #To add: vulnerability-software relationship
         return {
@@ -638,6 +653,24 @@ class GptEnrichmentConnector:
             "file_observables":file_observables
         }
     
+    def build_observable_entity_relationships(self, entities,observables) -> list[stix2.Relationship]:
+        return {
+            "indicator_malware":self.build_indicator_malware_relationships(observables["file_observables"],entities["malware"])
+        }
+    
+    def build_file_indicates_malware_relationships(self, file_indicators,malwares) -> list[stix2.Relationship]:
+        if len(malwares)==1:
+            return create_relationships(
+                "indicates",
+                self.author,
+                file_indicators,
+                malwares,
+                0,
+                []
+            )
+        return []
+    
+    
 
     
     def fetch_current_entities(self, report:stix2.Report) -> list: #TODO: add type in annotation
@@ -645,15 +678,8 @@ class GptEnrichmentConnector:
         pass
 
 
-    def build_stix_bundle(self, entities:dict,relationships:dict,observables:dict) -> stix2.Bundle: #TODO: build function in builder.py in AV connector is pretty good, later we can use that.
+    def build_stix_bundle(self, entities:dict,relationships:dict,observables:dict,observable_entity_relationships:dict) -> stix2.Bundle: #TODO: build function in builder.py in AV connector is pretty good, later we can use that.
         # self.helper.log_info(f"Bundling {len(entities)} entities and {len(relationships)}")
-        
-
-        
-
-        
-
-        
 
         num_entities = len([entity_package for entity_package in entities.values()]) #TODO:this doesnt work, need to fix.
         num_relationships = len([relationship_package for relationship_package in relationships.values()])
@@ -661,6 +687,7 @@ class GptEnrichmentConnector:
         entities_list = list(entities.values())
         relationships_list = list(relationships.values())
         observables_list = observables
+        observable_entity_relationships_list=list(observable_entity_relationships.values())
         object_refs=create_object_refs(
             entities_list,
             relationships_list,
@@ -672,6 +699,7 @@ class GptEnrichmentConnector:
         all_entities.extend(entities_list)
         all_entities.extend(relationships_list)
         all_entities.extend([observables_list[observable_type] for observable_type in observables_list.keys()])
+        all_entities.extend(observable_entity_relationships_list)
         
         
 
