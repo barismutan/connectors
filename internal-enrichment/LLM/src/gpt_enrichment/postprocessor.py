@@ -1,8 +1,13 @@
 import re
 import json
 from pycti import OpenCTIConnectorHelper
+from warnings import warn
+
+
 class Postprocessor:
+    
     def __init__(self,helper: OpenCTIConnectorHelper):
+        warn("This class is deprecated. Use the one in the gpt_enrichment folder instead.",DeprecationWarning)
         super().__init__() #this is not used for now. Idea is to create a TextProcessor class and have Preprocessor and Postprocessor inherit from it.
         self.emptyish=[
             "None",
