@@ -21,7 +21,7 @@ class IntrusionSetModel(BaseModel):
 
 class MalwareModel(BaseModel):
     name: str
-    type: Literal["keylogger","backdoor","downloader","dropper","RAT","rootkit","botnet","ransomware","adware","spyware","worm","wiper","cryptojacker","cryptominer","infostealer","mobile_malware","browser_hijacker"]
+    type: Literal["keylogger","backdoor","downloader","dropper","rat","rootkit","botnet","ransomware","adware","spyware","worm","wiper","cryptojacker","cryptominer","infostealer","mobile_malware","browser_hijacker"]
 
 class ToolsModel(BaseModel):
     name: str
@@ -37,7 +37,7 @@ class VulnerabilityModel(BaseModel):
     name: Annotated[str,StringConstraints(pattern=r'CVE-\d{4}-\d{4,7}')]
 
 class IndicatorModel(BaseModel):
-    type: Annotated[str,StringConstraints(pattern=r'file:hashes\.MD5\(\d{32}\)|file:hashes\.SHA-1\(\d{40}\)|file:hashes\.SHA-256\(\d{64}\)')] #TODO: use stix validator instead
+    type: Annotated[str,StringConstraints(pattern=r'file:hashes\.(MD5|SHA-1|SHA-256)')] #TODO: use stix validator instead
     value:Annotated[str,StringConstraints(pattern=r'[a-fA-F\d]{32}|[a-fA-F\d]{40}|[a-fA-F\d]{64}')]
     
     @root_validator(pre=True)
@@ -58,16 +58,15 @@ class IndicatorModel(BaseModel):
 
 class LLMResponseModel(BaseModel):
     title: str
-    victim_organization: VictimOrganizationModel
-    victim_countries: VictimCountryModel
-    victim_industries: VictimSectorModel
-    victim_regions: VictimRegionModel
-    intrusion_sets: List[IntrusionSetModel]
+    victim_organization: str
+    victim_countries: List[str]
+    victim_industries: List[str]
+    victim_regions: List[str]
+    intrusion_sets: List[str]
     malware: List[MalwareModel]
-    tools: List[ToolsModel]
+    tools: List[str]
     attack_patterns: List[AttackPatternModel]
-    vulnerabilities: List[VulnerabilityModel]
+    vulnerabilities: List[Annotated[str,StringConstraints(pattern=r'CVE-\d{4}-\d{4,7}')]]
     indicators: List[IndicatorModel]  
 
-print(json.dumps(LLMResponseModel.model_json_schema(),indent=4))
     
