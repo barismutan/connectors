@@ -13,6 +13,7 @@ from .regex_extract import RegexExtractor
 from threading import Lock
 from gpt_enrichment.utils import *
 
+
 class GptEnrichmentConnector:
     def __init__(self):
         self._SOURCE_NAME = "GPT Enrichment Connector"
@@ -23,7 +24,8 @@ class GptEnrichmentConnector:
             if os.path.isfile(config_file_path)
             else {}
         )
-        # print("Config: ",config)
+        
+
         self.helper = OpenCTIConnectorHelper(config)
         self.temperature = get_config_variable(
             "GPT_ENRICHMENT_TEMPERATURE", ["gpt_enrichment", "temperature"], config, False, 0.0
@@ -74,6 +76,10 @@ class GptEnrichmentConnector:
         self.duplicate_report=get_config_variable(
             "GPT_ENRICHMENT_DUPLICATE_REPORT", ["gpt_enrichment", "duplicate_report"], config, False, False
         )
+        
+        self.create_malware_indicator_relationships=get_config_variable(
+            "GPT_ENRICHMENT_CREATE_MALWARE_INDICATOR_RELATIONSHIPS", ["gpt_enrichment", "create_malware_indicator_relationships"], config, False, False
+        ) #This will only be used to create relationships between malware and indicators iff only 1 malware is found in the blog.
             
 
 
@@ -81,13 +87,20 @@ class GptEnrichmentConnector:
         self.lock = Lock()
         self.preprocessor= Preprocessor(self.helper)
         self.postprocessor= Postprocessor(self.helper)
-        # print("---Connector config before---:")
-        # print(self.helper.connector_config)
+        
+
+        
+
         if not self.connector_dockerized:
             self.helper.connector_config['connection']['host']='localhost'
-        # print("---Connector config after---:")
-        # print(self.helper.connector_config)
-        # print("Self.update_existing: ",self.update_existing)
+        
+
+        
+
+        
+
+        
+        self.regex_extractor=RegexExtractor()
 
 
     def run(self):
@@ -128,7 +141,8 @@ class GptEnrichmentConnector:
         if blog['victim_organization'] == "": #checking against no victim found case
             return []
         victim=create_organization(blog['victim_organization'],self.author)
-        # print("victim: ",victim)
+        
+
         return [victim]
         
         
@@ -181,6 +195,51 @@ class GptEnrichmentConnector:
     #         for v in s['versions']:
     #             software_entities.append(create_software(name,self.author,0,[],v))
     
+    def build_file_observables(self, blog : dict) -> list[stix2.File|stix2.Indicator]:
+        objects=[]
+        all_hashes=[]
+        all_hashes.extend([("md5",md5) for md5 in blog['observables']['md5s']])
+        all_hashes.extend([("sha1",sha1) for sha1 in blog['observables']['sha1s']])
+        all_hashes.extend([("sha256",sha256) for sha256 in blog['observables']['sha256s']])
+        author_identity=self.helper.api.identity.read(filters=[{'key':'name','values':[self._SOURCE_NAME]}])
+        for hash_type,hash_value in all_hashes:
+            
+            factory=OBSERVATION_FACTORY_FILE_MD5 if hash_type=="md5" else OBSERVATION_FACTORY_FILE_SHA1 if hash_type=="sha1" else OBSERVATION_FACTORY_FILE_SHA256
+            
+
+            
+
+            observable_properties= ObservableProperties(
+                value=hash_value,
+                created_by=author_identity,
+                labels=[],
+                object_markings=[]
+            )
+            observable=factory.create_observable(observable_properties)
+            objects.append(observable)
+            pattern=factory.create_indicator_pattern(hash_value)
+            
+
+            indicator=create_indicator(
+                pattern.pattern,
+                "stix",
+                self.author,
+                hash_value,
+                0
+            )
+            objects.append(indicator)
+            relationship=create_relationship(
+                "based-on",
+                self.author,
+                indicator,
+                observable,
+                0,
+                []
+            )
+            objects.append(relationship)
+        return objects
+                   
+
 
     def build_reports(self, entities : list) -> list[stix2.Report]:
 
@@ -218,8 +277,10 @@ class GptEnrichmentConnector:
             )
 
     def build_malware_victim_relationships(self, malwares,victims ) -> list[stix2.Relationship]:
-        # print("malwares: ",malwares)
-        # print("victims: ",victims)
+        
+
+        
+
         return create_relationships(
             "targets",
             self.author,
@@ -482,6 +543,19 @@ class GptEnrichmentConnector:
     #             []
     #         )
 
+    def build_indicator_malware_relationships(self, indicators,malwares) -> list[stix2.Relationship]:
+
+        if len(malwares)==1:
+            return create_relationships(
+                "indicates",
+                self.author,
+                indicators,
+                malwares,
+                0,
+                []
+            )
+        return []
+
 
 
     ## ----------------- ##
@@ -516,6 +590,7 @@ class GptEnrichmentConnector:
             pass
         else:
             pass
+
         malware_region_relationships = self.build_malware_region_relationships(entities["malware"],entities["regions"])#split to create_malware_region_relationships and create_malware_country_relationships
         malware_country_relationships = self.build_malware_country_relationships(entities["malware"],entities["countries"])
         malware_victim_relationships = self.build_malware_victim_relationships(entities["malware"],entities["victims"])
@@ -540,6 +615,7 @@ class GptEnrichmentConnector:
         intrusion_set_victim_relationships = self.build_intrusion_set_organization_relationships(entities["intrusion_sets"],entities["victims"])
         victim_malware_relationships = self.build_victim_malware_relationships(entities["victims"],entities["malware"])
         victim_vulnerability_relationships = self.build_victim_vulnerability_relationships(entities["victims"],entities["vulnerabilities"])
+        
         # software_vulnerability_relationships = self.build_software_vulnerability_relationships(entities["software"],entities["vulnerabilities"])
         #To add: vulnerability-software relationship
         return {
@@ -571,36 +647,79 @@ class GptEnrichmentConnector:
             # "software_vulnerability": software_vulnerability_relationships
 
         }
+        
+    def build_observables(self, blog : dict) -> list[stix2.Indicator]:
+        print("Blog in build_observables: ",json.dumps(blog,indent=4))
+        file_observables=self.build_file_observables(blog)
+        #...
+        return {
+            "file_observables":file_observables
+        }
+    
+    def build_observable_entity_relationships(self, entities,observables) -> dict[str,stix2.Relationship]:
+        indicator_entities=[entity for entity in observables["file_observables"] if type(entity)==stix2.Indicator]
+        return {
+            "indicator_malware":self.build_indicator_malware_relationships(indicator_entities,entities["malware"])
+        }
+    
+    def build_file_indicates_malware_relationships(self, file_indicators,malwares) -> list[stix2.Relationship]:
+        if len(malwares)==1:
+            return create_relationships(
+                "indicates",
+                self.author,
+                file_indicators,
+                malwares,
+                0,
+                []
+            )
+        return []
+    
+    
+
     
     def fetch_current_entities(self, report:stix2.Report) -> list: #TODO: add type in annotation
 
         pass
 
 
-    def build_stix_bundle(self, entities:dict,relationships:dict) -> stix2.Bundle: #TODO: build function in builder.py in AV connector is pretty good, later we can use that.
+    def build_stix_bundle(self, entities:dict,relationships:dict,observables:dict,observable_entity_relationships:dict) -> stix2.Bundle: #TODO: build function in builder.py in AV connector is pretty good, later we can use that.
         # self.helper.log_info(f"Bundling {len(entities)} entities and {len(relationships)}")
+
         num_entities = len([entity_package for entity_package in entities.values()]) #TODO:this doesnt work, need to fix.
         num_relationships = len([relationship_package for relationship_package in relationships.values()])
         self.helper.log_info(f"Bundling {num_entities} entities and {num_relationships} relationships")
         entities_list = list(entities.values())
         relationships_list = list(relationships.values())
+        observables_list = observables
+        observable_entity_relationships_list=list(observable_entity_relationships.values())
         object_refs=create_object_refs(
             entities_list,
-            relationships_list
+            relationships_list,
+            observables_list
         )
         all_entities=[] #TODO: RENAME TO all_objects
 
         all_entities.extend(object_refs)  #Here the order may be important, not sure.
         all_entities.extend(entities_list)
         all_entities.extend(relationships_list)
+        all_entities.extend([observables_list[observable_type] for observable_type in observables_list.keys()])
+        all_entities.extend(observable_entity_relationships_list)
+        
+        
+
         
         all_entities_unpacked=[]
         for entity in all_entities:
             self.helper.log_debug(f"DEBUG DEBUG: Entity: {entity}")
             if type(entity)==list:
                 all_entities_unpacked.extend(entity)
+
+        
+        
         self.helper.log_debug(f"DEBUG DEBUG: All entities: {all_entities}")
         
+        
+
         
         return stix2.Bundle(
             objects=all_entities_unpacked,
@@ -663,22 +782,26 @@ class GptEnrichmentConnector:
     ## ----------------- ##
     
     ##Report duplication function
-    def create_bundle_with_new_report(self,old_report,entities:dict[str,stix2.v21._DomainObject],relationships:dict[str,stix2.Relationship]) -> None:
-        print("entity types:" +str([type(entity) for entity in entities.values()]))
+    def create_bundle_with_new_report(self,old_report,entities:dict[str,stix2.v21._DomainObject],relationships:dict[str,stix2.Relationship],observables:dict[str,stix2.v21._Observable|stix2.v21.Indicator],observable_entity_relationships:list[stix2.Relationship]) -> None:
+        
+
         entities_unpacked=[entity for entity in entities.values() for entity in entity]
-        print("unpacked entity types:" +str([type(entity) for entity in entities_unpacked]))
+        
+
         relationships_unpacked=[relationship for relationship in relationships.values() for relationship in relationship]
-        # print(json.dumps(entities_unpacked,indent=4))
+        observables_unpacked=[observable for observable in observables.values() for observable in observable]
         new_report=create_report(
             "LLM Generated-- "+old_report['name'],
             old_report['published'],
             objects=create_object_refs(
                 entities_unpacked,
-                relationships_unpacked
+                relationships_unpacked,
+                observables_unpacked
             )
         )
         entities['reports']=[new_report]
-        new_bundle=self.build_stix_bundle(entities,relationships)
+        
+        new_bundle=self.build_stix_bundle(entities,relationships,observables,observable_entity_relationships)
         return new_bundle
         
     
@@ -713,32 +836,39 @@ class GptEnrichmentConnector:
 
 
                 blog = self.preprocessor.preprocess(blog_html)
-                # print("blog: ",blog)
+                
+
                 #deneme
                 gpt_response = self.llm_client.prompt(self.helper, entity_id,blog,test_mode=self.use_test_prompt)
                 gpt_response_postprocessed = self.postprocessor.postprocess(gpt_response)
-                note_body = f"Temperature: {self.temperature}\nModel: {self.model}\nPrompt: {self.prompt_version}\n```\n" + json.dumps(gpt_response_postprocessed,indent=4) + "\n```"
-                
                 
                 ##-----------------## Extract entities, relationships and build stix bundle
                 self.helper.log_debug(f"Blog (after preprocessing): {blog}")
                 entities = self.build_entities(gpt_response_postprocessed)
-                self.helper.log_debug(f"Entities: {entities}")
+
                 relationships = self.build_relationships(entities, gpt_response_postprocessed)
-                self.helper.log_debug(f"Relationships: {relationships}")
+
+                gpt_response_postprocessed['observables']=self.regex_extractor.extract_all(blog)
+                observables = self.build_observables(gpt_response_postprocessed)
+                observable_entity_relationships=self.build_observable_entity_relationships(entities,observables)
+                
+                #NOTE:Uncomment above part later
+                
+
+                self.helper.log_debug(f"Observables: {observables}")
                 
 
                 ##-----------------##
 
-                #Send the bundle to OpenCTI
-                # test=self.build_stix_bundle(entities,relationships)
-                # print(json.dumps(test,indent=4))
+
+                
+
                 
                 if self.duplicate_report:
-                    bundle_with_new_report=self.create_bundle_with_new_report(report,entities,relationships)#TODO  
+                    bundle_with_new_report=self.create_bundle_with_new_report(report,entities,relationships,observables,observable_entity_relationships)#TODO  
                     self.send_bundle(bundle_with_new_report)
                 else:
-                    stix_bundle = self.build_stix_bundle(entities,relationships)
+                    stix_bundle = self.build_stix_bundle(entities,relationships,observables,observable_entity_relationships)
                     self.send_bundle(stix_bundle)
                     self.update_report_objects(stix_bundle,report['id'])
 
