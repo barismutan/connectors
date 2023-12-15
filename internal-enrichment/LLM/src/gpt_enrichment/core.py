@@ -544,6 +544,8 @@ class GptEnrichmentConnector:
     #         )
 
     def build_indicator_malware_relationships(self, indicators,malwares) -> list[stix2.Relationship]:
+
+        if len(malwares)==1:
             return create_relationships(
                 "indicates",
                 self.author,
@@ -552,6 +554,7 @@ class GptEnrichmentConnector:
                 0,
                 []
             )
+        return []
 
 
 
@@ -653,9 +656,10 @@ class GptEnrichmentConnector:
             "file_observables":file_observables
         }
     
-    def build_observable_entity_relationships(self, entities,observables) -> list[stix2.Relationship]:
+    def build_observable_entity_relationships(self, entities,observables) -> dict[str,stix2.Relationship]:
+        indicator_entities=[entity for entity in observables["file_observables"] if type(entity)==stix2.Indicator]
         return {
-            "indicator_malware":self.build_indicator_malware_relationships(observables["file_observables"],entities["malware"])
+            "indicator_malware":self.build_indicator_malware_relationships(indicator_entities,entities["malware"])
         }
     
     def build_file_indicates_malware_relationships(self, file_indicators,malwares) -> list[stix2.Relationship]:
@@ -778,7 +782,7 @@ class GptEnrichmentConnector:
     ## ----------------- ##
     
     ##Report duplication function
-    def create_bundle_with_new_report(self,old_report,entities:dict[str,stix2.v21._DomainObject],relationships:dict[str,stix2.Relationship],observables:dict[str,stix2.v21._Observable|stix2.v21.Indicator]) -> None:
+    def create_bundle_with_new_report(self,old_report,entities:dict[str,stix2.v21._DomainObject],relationships:dict[str,stix2.Relationship],observables:dict[str,stix2.v21._Observable|stix2.v21.Indicator],observable_entity_relationships:list[stix2.Relationship]) -> None:
         
 
         entities_unpacked=[entity for entity in entities.values() for entity in entity]
@@ -797,7 +801,7 @@ class GptEnrichmentConnector:
         )
         entities['reports']=[new_report]
         
-        new_bundle=self.build_stix_bundle(entities,relationships,observables)
+        new_bundle=self.build_stix_bundle(entities,relationships,observables,observable_entity_relationships)
         return new_bundle
         
     
@@ -846,6 +850,7 @@ class GptEnrichmentConnector:
 
                 gpt_response_postprocessed['observables']=self.regex_extractor.extract_all(blog)
                 observables = self.build_observables(gpt_response_postprocessed)
+                observable_entity_relationships=self.build_observable_entity_relationships(entities,observables)
                 
                 #NOTE:Uncomment above part later
                 
@@ -860,10 +865,10 @@ class GptEnrichmentConnector:
 
                 
                 if self.duplicate_report:
-                    bundle_with_new_report=self.create_bundle_with_new_report(report,entities,relationships,observables)#TODO  
+                    bundle_with_new_report=self.create_bundle_with_new_report(report,entities,relationships,observables,observable_entity_relationships)#TODO  
                     self.send_bundle(bundle_with_new_report)
                 else:
-                    stix_bundle = self.build_stix_bundle(entities,relationships,observables)
+                    stix_bundle = self.build_stix_bundle(entities,relationships,observables,observable_entity_relationships)
                     self.send_bundle(stix_bundle)
                     self.update_report_objects(stix_bundle,report['id'])
 
