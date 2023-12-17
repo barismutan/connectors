@@ -137,32 +137,17 @@ class GptClient:
     "Energy"
   ],
   "Threat Actors": [
-    {
-      "name": "APT28",
-      "aliases": [
-        "IRON TWILIGHT",
-        "Fancy Bear",
-        "Pawn Storm",
-        "Sofacy Group",
-        "Sednit",
-        "STRONTIUM",
-        "Tsar Team",
-        "TG-4127"
-      ]
-    },
-    {
-      "name": "Lazarus",
-      "aliases": [
-        "Hidden Cobra",
-        "Guardians of Peace"
-      ]
-    },
-    {
-      "name": "Deneme_{}".format(random.randint(0,15000)),
-      "aliases": [
-        "N/A"
-      ]
-    }
+
+    "IRON TWILIGHT",
+    "Fancy Bear",
+    "Pawn Storm",
+    "Sofacy Group",
+    "Sednit",
+    "STRONTIUM",
+    "Tsar Team",
+    "TG-4127"
+    "Deneme_{}".format(random.randint(0,15000)),
+
   ],
   "Actor Motivation": [
     "Cyber Espionage",

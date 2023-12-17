@@ -44,7 +44,8 @@ class Postprocessor:
             "threat_actor":"intrusion_sets",
             "sectors":"sectors",
             "Title":"title",
-            "Victim Country":"victim_country",
+            "Victim Country":"victim_countries",
+            "victim_country":"victim_countries", #temporary solution
             "Victim Region":"victim_region",
             "Sectors":"sectors",
             "Threat Actors":"intrusion_sets",
@@ -128,14 +129,11 @@ class Postprocessor:
                     blog[field]=self.remove_emptyish_strings(blog[field])
 
 
-                
-
-                # field=field.lower()
-                # print("Blog after lowercase: " + str(blog))
+                print(output_field)
 
                 if output_field=="title":
                     output[output_field]=self.postprocess_title_field(blog[field])
-                elif output_field=="victim_country":
+                elif output_field=="victim_countries":
                     output[output_field]=self.postprocess_victim_country_field(blog[field])
                 elif output_field=="victim_region":
                     output[output_field]=self.postprocess_victim_region_field(blog[field])
@@ -262,24 +260,24 @@ class Postprocessor:
             return sectors
         raise self.PostProcessingException(f"Sectors field is not a list of strings: {sectors}")
     
-    def postprocess_threat_actor_field(self, threat_actors : list[dict]) -> list[dict]:
-        if type(threat_actors)==list and all(isinstance(item, dict) for item in threat_actors):
-            for element in threat_actors:
-                list_of_keys=list(element.keys())
-                if len(list_of_keys)!=2:
-                    raise self.PostProcessingException(f"A threat actor object does not have two keys: {element}")
-                if "name" not in list_of_keys:
-                    raise self.PostProcessingException(f"A threat actor object does not have a name key: {element}")
-                if "aliases" not in list_of_keys:
-                    raise self.PostProcessingException(f"A threat actor object does not have a aliases key: {element}")
-                if type(element["name"])!=str:
-                    raise self.PostProcessingException(f"A threat actor object's name field is not a string: {element}")
-                if type(element["aliases"])!=list and not all(isinstance(item, str) for item in element["aliases"]):
-                    raise self.PostProcessingException(f"A threat actor object's name field is not a list of strings: {element}")
-                
+    def postprocess_threat_actor_field(self, threat_actors : list[str]) -> list[dict]:
+        # if type(threat_actors)==list and all(isinstance(item, dict) for item in threat_actors):
+        #     for element in threat_actors:
+        #         list_of_keys=list(element.keys())
+        #         if len(list_of_keys)!=2:
+        #             raise self.PostProcessingException(f"A threat actor object does not have two keys: {element}")
+        #         if "name" not in list_of_keys:
+        #             raise self.PostProcessingException(f"A threat actor object does not have a name key: {element}")
+        #         if "aliases" not in list_of_keys:
+        #             raise self.PostProcessingException(f"A threat actor object does not have a aliases key: {element}")
+        #         if type(element["name"])!=str:
+        #             raise self.PostProcessingException(f"A threat actor object's name field is not a string: {element}")
+        #         if type(element["aliases"])!=list and not all(isinstance(item, str) for item in element["aliases"]):
+        #             raise self.PostProcessingException(f"A threat actor object's name field is not a list of strings: {element}")
+        if type(threat_actors)==list and all(isinstance(item, str) for item in threat_actors):   
             return threat_actors
         else:
-            raise self.PostProcessingException(f"Threat actor field is not a list of dictionaries: {threat_actors}")
+            raise self.PostProcessingException(f"Threat actor field is not a list of strings: {threat_actors}")
 
     def postprocess_actor_motivation_field(self, actor_motivation : list[str]) -> list[str]:
         if type(actor_motivation)==list and all(isinstance(item, str) for item in actor_motivation):

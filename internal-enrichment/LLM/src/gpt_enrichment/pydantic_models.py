@@ -21,7 +21,7 @@ class IntrusionSetModel(BaseModel):
 
 class MalwareModel(BaseModel):
     name: str
-    type: Literal["keylogger","backdoor","downloader","dropper","rat","rootkit","botnet","ransomware","adware","spyware","worm","wiper","cryptojacker","cryptominer","infostealer","mobile_malware","browser_hijacker"]
+    type: List[Literal["keylogger","backdoor","downloader","dropper","rat","rootkit","botnet","ransomware","adware","spyware","worm","wiper","cryptojacker","cryptominer","infostealer","mobile_malware","browser_hijacker"]]
 
 class ToolsModel(BaseModel):
     name: str
