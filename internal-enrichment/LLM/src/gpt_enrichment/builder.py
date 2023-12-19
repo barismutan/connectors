@@ -65,8 +65,7 @@ class ResponseBundleBuilder:
         self, intrusion_sets: List[stix2.IntrusionSet], malwares: List[stix2.Malware]
     ) -> List[stix2.Relationship]:
         """Create uses relationships between intrusion sets and malwares."""
-        uses_relationships = []
-        create_relationships(
+        uses_relationships = create_relationships(
             "uses",
             self.author,
             intrusion_sets,
@@ -93,8 +92,7 @@ class ResponseBundleBuilder:
         self, source: List[stix2.IntrusionSet|stix2.Malware], target: List[stix2.Identity]
     ) -> List[stix2.Relationship]:
         """Create targets relationships between intrusion sets and target sectors."""
-        targets_relationships = []
-        create_relationships(
+        targets_relationships =create_relationships(
             "targets",
             self.author,
             source,
@@ -131,6 +129,13 @@ class ResponseBundleBuilder:
             )
         return vulnerabilities
     
+    def _create_victim_organization(self) -> stix2.Identity:
+        """Create organization for the report."""
+        return [create_organization(
+            self.llm_response['victim_organization'],
+            self.author
+        )]
+    
     def build_file_observables(self, blog : dict) -> list[stix2.File|stix2.Indicator]:
         objects=[]
         all_hashes=[]
@@ -147,8 +152,6 @@ class ResponseBundleBuilder:
     def _create_observations(self, report_external_references: List[stix2.ExternalReference]) -> List[Observation]:
         """Create observations for the report."""
         observations = []
-        print(self.llm_response['observables'])
-        print("Author:",self.author)
         for indicator_type in self.llm_response['observables'].keys():
             try:
                 factory=self._INDICATOR_TYPE_TO_OBSERVATION_FACTORY[indicator_type]
@@ -163,7 +166,7 @@ class ResponseBundleBuilder:
                 )
                     
                 indicator_pattern=factory.create_indicator_pattern(indicator_value)
-                print("Indicator pattern:",indicator_pattern)
+
                 pattern_type='stix' #TODO:move this to member field
                 indicator=create_indicator(
                     indicator_pattern.pattern,
@@ -196,8 +199,7 @@ class ResponseBundleBuilder:
         self, indicators: List[stix2.Indicator], entities: List[stix2.IntrusionSet|stix2.Malware]
     ) -> List[stix2.Relationship]:
         """Create indicates relationships between indicators and entities."""
-        indicates_relationships = []
-        create_relationships(
+        indicates_relationships =create_relationships(
             "indicates",
             self.author,
             indicators,
@@ -223,9 +225,8 @@ class ResponseBundleBuilder:
         return create_organization(self._DUMMY_OBJECT_NAME, self.author)
     
     def _create_report(self, objects: List[_DomainObject]) -> stix2.Report:
-        print("Report",self.report)
         
-        return create_report(
+        return [create_report(
             self.report['name'] if not self.duplicate_report else "LLM Generated - "+self.report['name'],
             self.report['published'],
             objects,
@@ -236,10 +237,10 @@ class ResponseBundleBuilder:
             report_types=None,
             labels=None,
             confidence=self.confidence,
-            external_references=self._create_external_references(),
+            external_references=self.external_references,
             object_markings=None,
             x_opencti_report_status=None,
-        )
+        )]
     
     
             
@@ -260,6 +261,34 @@ class ResponseBundleBuilder:
         # Create malwares and add to bundle.
         malwares = self._create_malwares()
         bundle_objects.extend(malwares)
+        
+        #Create victim organization and add to bundle
+        victim_organization=self._create_victim_organization()
+        bundle_objects.extend(victim_organization)
+        
+        malwares_targets_organization=create_targets_relationships(
+            self.author,
+            malwares,
+            victim_organization,
+            self.confidence,
+            self.object_markings
+        )
+        
+        bundle_objects.extend(malwares_targets_organization)
+        
+        intrusion_sets_targets_organization=create_targets_relationships(
+            self.author,
+            intrusion_sets,
+            victim_organization,
+            self.confidence,
+            self.object_markings
+        )
+        
+        bundle_objects.extend(intrusion_sets_targets_organization)
+        
+        
+        
+        
 
         # Intrusion sets use malwares and add to bundle.
         intrusion_sets_use_malwares = self._create_uses_relationships(
@@ -299,6 +328,30 @@ class ResponseBundleBuilder:
         )
         bundle_objects.extend(malwares_target_countries)
         
+        #Create relationships between victim organization and sectors
+        organization_related_to_sector=create_relationships(
+            "related-to",
+            self.author,
+            victim_organization,
+            target_sectors,
+            self.confidence,
+            self.object_markings
+        )
+        
+        bundle_objects.extend(organization_related_to_sector)
+        
+        #Create relationships between victim organization and countries
+        organization_related_to_country=create_relationships(
+            "related-to",
+            self.author,
+            victim_organization,
+            target_countries,
+            self.confidence,
+            self.object_markings
+        )
+        
+        bundle_objects.extend(organization_related_to_country)
+             
         # Create vulnerabilities and add to bundle.
         vulnerabilities = self._create_vulnerabilities()
         bundle_objects.extend(vulnerabilities)
@@ -324,6 +377,7 @@ class ResponseBundleBuilder:
         
         # Get indicators, create YARA indicators and to bundle.
         indicators = [o.indicator for o in observations if o.indicator is not None]
+        bundle_objects.extend(indicators)
 
         # Get observation relationships and add to bundle.
         indicators_based_on_observables = [
@@ -340,9 +394,11 @@ class ResponseBundleBuilder:
             )
             bundle_objects.extend(indicator_indicates_intrusion_sets)
         if len(malwares) == 1:
+            print("Creating relationships between indicators and malware")
             indicator_indicates_malwares = self._create_indicates_relationships(
                 indicators, malwares
             )
+            print("Created following relationships between indicators and malware:\n ",indicator_indicates_malwares)
             bundle_objects.extend(indicator_indicates_malwares)
         
 
@@ -350,6 +406,7 @@ class ResponseBundleBuilder:
         object_refs = create_object_refs(
             intrusion_sets,
             malwares,
+            victim_organization,
             intrusion_sets_use_malwares,
             target_sectors,
             intrusion_sets_target_sectors,
@@ -365,6 +422,8 @@ class ResponseBundleBuilder:
             indicators_based_on_observables,
             indicator_indicates_intrusion_sets,
             indicator_indicates_malwares,
+            organization_related_to_sector,
+            organization_related_to_country
         )
 
         # Hack, the report must have at least on object reference.
@@ -377,7 +436,8 @@ class ResponseBundleBuilder:
         # Create a report and add to bundle.
         reports = self._create_report(object_refs)
         bundle_objects.extend(reports)
-        print("Bundle objects:")
         bundle_objects=[o for o in bundle_objects if type(o)!=str]
+        
+        
         
         return stix2.Bundle(objects=bundle_objects, allow_custom=True)

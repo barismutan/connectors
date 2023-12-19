@@ -16,7 +16,7 @@ class GptClient:
         return
     
 
-    def consume_queue(self,expected_report_id,receive_wait_time=10,total_wait_time=100):
+    def consume_queue(self,expected_report_id,receive_wait_time=10,total_wait_time=180):
         time_elapsed=receive_wait_time  
         
         response = self.sqs_client.receive_message(
@@ -25,7 +25,7 @@ class GptClient:
         VisibilityTimeout=60,
         WaitTimeSeconds=receive_wait_time
     )
-        while time_elapsed<total_wait_time:
+        while time_elapsed<=total_wait_time:
             print("Response from queue")
             print(json.dumps(response,indent=4))
             if response.get('Messages') != None:
@@ -124,7 +124,7 @@ class GptClient:
             return \
             json.dumps({
   "Title": "Kegtap and Singlemalt: APT28 Uses Vintage Malware to Attack Governments and Energy Sector",
-  "Victim Organization": "N/A",
+  "Victim Organization": "Walmart",
   "Victim Country": [
     "United States",
     "Canada"
@@ -145,7 +145,7 @@ class GptClient:
     "Sednit",
     "STRONTIUM",
     "Tsar Team",
-    "TG-4127"
+    "TG-4127",
     "Deneme_{}".format(random.randint(0,15000)),
 
   ],

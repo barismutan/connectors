@@ -185,14 +185,19 @@ class GptEnrichmentConnector:
         entity_id = data["entity_id"]
 
         report = self.helper.api.report.read(id=entity_id)
+        print("Report: {}".format(report))
+        print("Type of report: {}".format(type(report)))
         if report is None:
             raise ValueError("Report not found")
         
         try:
             for external_reference in report["externalReferences"]:
                 if external_reference["url"].startswith("https://otx.alienvault"):
+                    
                     continue
                 # self.helper.api.work.to_received()
+
+                
                 blog_html = self.fetcher.get_html(self.helper, external_reference["url"])
 
 
@@ -209,6 +214,7 @@ class GptEnrichmentConnector:
 
                 gpt_response_postprocessed['observables']=self.regex_extractor.extract_all(blog)
                 author_identity=self.helper.api.identity.read(filters=[{'key':'name','values':[self._SOURCE_NAME]}])
+                
                 
                 builder=ResponseBundleBuilder(
                     llm_response=gpt_response_postprocessed,
