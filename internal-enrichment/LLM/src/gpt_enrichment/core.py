@@ -55,7 +55,7 @@ class GptEnrichmentConnector:
             "GPT_ENRICHMENT_QUEUE_URL", ["gpt_enrichment", "queue_url"], config, False, ""
         ) #NEW
 
-        self.llm_client= GptClient(api_getaway_url,queue_url)
+        self.llm_client= GptClient(api_getaway_url,queue_url,self.helper)
 
         self.fetcher= BlogFetcher()
 
@@ -185,8 +185,6 @@ class GptEnrichmentConnector:
         entity_id = data["entity_id"]
 
         report = self.helper.api.report.read(id=entity_id)
-        print("Report: {}".format(report))
-        print("Type of report: {}".format(type(report)))
         if report is None:
             raise ValueError("Report not found")
         

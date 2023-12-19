@@ -9,14 +9,15 @@ import json
 import random
 
 class GptClient:
-    def __init__(self, api_getaway:str, output_queue:str):
+    def __init__(self, api_getaway:str, output_queue:str,helper:OpenCTIConnectorHelper):
         self.sqs_client = boto3.client('sqs', region_name='us-east-1')
         self.api_getaway = api_getaway
         self.output_queue = output_queue
+        self.helper=helper
         return
     
 
-    def consume_queue(self,expected_report_id,receive_wait_time=10,total_wait_time=180):
+    def consume_queue(self,expected_report_id,receive_wait_time=10,total_wait_time=220):
         time_elapsed=receive_wait_time  
         
         response = self.sqs_client.receive_message(
@@ -26,11 +27,11 @@ class GptClient:
         WaitTimeSeconds=receive_wait_time
     )
         while time_elapsed<=total_wait_time:
-            print("Response from queue")
-            print(json.dumps(response,indent=4))
+            self.helper.log_debug("Response from queue:")
+            self.helper.log_debug(json.dumps(response,indent=4))
             if response.get('Messages') != None:
-                print("Received message:")
-                print(json.dumps(response,indent=4))
+                self.helper.log_debug("Received message:")
+                self.helper.log_debug(json.dumps(response,indent=4))
                 #delete message
                 self.sqs_client.delete_message(
                     QueueUrl=self.output_queue,
@@ -44,8 +45,8 @@ class GptClient:
                     return message_body
             else:
                 #wait for 5 seconds
-                print("Received no messages. Sleeping for 5 seconds before retrying. Total time elapsed: {} seconds".format(time_elapsed))
-                print("Response: {}".format(str(response)))
+                self.helper.log_debug("Received no messages. Sleeping for 5 seconds before retrying. Total time elapsed: {} seconds".format(time_elapsed))
+                self.helper.log_debug("Response: {}".format(str(response)))
                 time.sleep(5)
                 time_elapsed+= 5+receive_wait_time #since we are waiting receive_wait_time as well.
                 response = self.sqs_client.receive_message(
@@ -72,7 +73,7 @@ class GptClient:
         )
 
         for message in response.get('Messages',[]):
-            # print("Deleting message")
+
             self.sqs_client.delete_message(
                 QueueUrl=self.output_queue,
                 ReceiptHandle=message['ReceiptHandle']
@@ -85,6 +86,8 @@ class GptClient:
     def make_request(self,helper:OpenCTIConnectorHelper,report_id:str, report_content:str,custom_prompt:bool = None):
         full_url = self.api_getaway.format(report_id)
         print("Making request to {}".format(full_url))
+        self.helper.log_debug("Making request to {}".format(full_url))
+        self.helper.log_info("Making request to {}".format(full_url))
         headers = {"Content-Type": "application/json; charset=utf-8"}
 
         # Through REST Requests
@@ -109,10 +112,7 @@ class GptClient:
                                 data=json.dumps(payload),
                                 headers=headers,
                                 auth=aws_auth)
-        
-        # print("Response from getaway:")
-        # print("Status code: ", r.status_code)
-        # print("Body:",r.text)
+
         #TODO: comment below later
         helper.log_debug("Response from getaway:")
         helper.log_debug("Status code: {}".format(r.status_code))
@@ -252,6 +252,7 @@ class GptClient:
         self.clear_queue()
 
         print("Sleeping for 10 seconds before making request")
+        
 
 
         time.sleep(10)
@@ -264,12 +265,14 @@ class GptClient:
         #----TEST----
         api_response=self.make_request(helper,report_id,report_content,custom_prompt)
         if api_response.status_code !=200:
-            print("Request failed with status code: {}".format(api_response.status_code))
+
+            self.helper.log_error("Request failed with status code: {}".format(api_response.status_code))
             return None
         else:
-            print("Request succeeded with status code: {}".format(api_response.status_code))
+            self.helper.log_info("Request succeeded with status code: {}".format(api_response.status_code))
         
         #consume queue
+
 
         response=self.consume_queue(report_id) #NOTE:TEST
         
@@ -280,8 +283,9 @@ class GptClient:
             helper.log_error("Queue consume timed out")
             return None
         
-        print ("Response from queue:")
-        print(json.dumps(response,indent=4))
+
+        self.helper.log_info("Response from queue:")
+        self.helper.log_info(json.dumps(response,indent=4))
         return json.dumps(response['fields'])
         
 
