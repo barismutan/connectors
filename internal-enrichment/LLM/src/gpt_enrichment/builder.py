@@ -102,7 +102,7 @@ class ResponseBundleBuilder:
         )
         return targets_relationships
     
-    def _create_target_countries(self) -> List[stix2.Identity]:
+    def _create_target_countries(self) -> List[stix2.Location]:
         """Create target countries for the report."""
         target_countries = []
         for c in self.llm_response['victim_countries']:
@@ -113,6 +113,18 @@ class ResponseBundleBuilder:
                 )
             )
         return target_countries
+    
+    def _create_target_regions(self) -> List[stix2.Location]:
+        """Create target regions for the report."""
+        target_regions = []
+        for r in self.llm_response['victim_regions']:
+            target_regions.append(
+                create_region(
+                    r,
+                    self.author
+                )
+            )
+        return target_regions
     
     def _create_vulnerabilities(self) -> List[stix2.Vulnerability]:
         """Create vulnerabilities for the report."""
@@ -315,18 +327,36 @@ class ResponseBundleBuilder:
         # Create target countries and add to bundle.
         target_countries = self._create_target_countries()
         bundle_objects.extend(target_countries)
+        
+        #Create target regions and add to bundle
+        target_regions=self._create_target_regions()
+        bundle_objects.extend(target_regions)
 
         # Intrusion sets target countries and add to bundle.
         intrusion_sets_target_countries = self._create_targets_relationships(
             intrusion_sets, target_countries
         )
         bundle_objects.extend(intrusion_sets_target_countries)
+        
+        # Intrusion sets target regions and add to bundle.
+        intrusion_sets_target_regions = self._create_targets_relationships(
+            intrusion_sets, target_regions
+        )
+        
+        bundle_objects.extend(intrusion_sets_target_regions)
 
         # Malwares target countries and add to bundle.
         malwares_target_countries = self._create_targets_relationships(
             malwares, target_countries
         )
         bundle_objects.extend(malwares_target_countries)
+        
+        # Malwares target regions and add to bundle.
+        malwares_target_regions = self._create_targets_relationships(
+            malwares, target_regions
+        )
+        bundle_objects.extend(malwares_target_regions)
+        
         
         #Create relationships between victim organization and sectors
         organization_related_to_sector=create_relationships(
@@ -394,11 +424,10 @@ class ResponseBundleBuilder:
             )
             bundle_objects.extend(indicator_indicates_intrusion_sets)
         if len(malwares) == 1:
-            print("Creating relationships between indicators and malware")
+            
             indicator_indicates_malwares = self._create_indicates_relationships(
                 indicators, malwares
             )
-            print("Created following relationships between indicators and malware:\n ",indicator_indicates_malwares)
             bundle_objects.extend(indicator_indicates_malwares)
         
 
@@ -414,6 +443,9 @@ class ResponseBundleBuilder:
             target_countries,
             intrusion_sets_target_countries,
             malwares_target_countries,
+            target_regions,
+            intrusion_sets_target_regions,
+            malwares_target_regions,
             vulnerabilities,
             intrusion_sets_target_vulnerabilities,
             malwares_target_vulnerabilities,

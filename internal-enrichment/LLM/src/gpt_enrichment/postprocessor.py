@@ -46,7 +46,8 @@ class Postprocessor:
             "Title":"title",
             "Victim Country":"victim_countries",
             "victim_country":"victim_countries", #temporary solution
-            "Victim Region":"victim_region",
+            # "Victim Region":"victim_region",
+            "victim_region":"victim_regions", #temporary solution
             "Sectors":"sectors",
             "Threat Actors":"intrusion_sets",
             "threat_actor":"intrusion_sets",
@@ -135,7 +136,7 @@ class Postprocessor:
                     output[output_field]=self.postprocess_title_field(blog[field])
                 elif output_field=="victim_countries":
                     output[output_field]=self.postprocess_victim_country_field(blog[field])
-                elif output_field=="victim_region":
+                elif output_field=="victim_regions":
                     output[output_field]=self.postprocess_victim_region_field(blog[field])
                 elif output_field=="sectors":
                     output[output_field]=self.postprocess_sectors_field(blog[field])
