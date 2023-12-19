@@ -99,9 +99,10 @@ class Preprocessor:
             html_processed = re.sub(r'<' + tag + r'[^>]*>', '', html_processed)
 
         filtered_text = self._get_p_and_h_tags(html_processed)
-        print("Result of crawling report page:")
+
+        self.helper.log_debug("Result of crawling report page:")
         text_joined='\n'.join(filtered_text)
-        print('\n'.join(filtered_text))
+        self.helper.log_debug('\n'.join(filtered_text))
         if len (text_joined) <= 250:
             raise PreprocessingException("Report content is too short ({})".format(len(text_joined)))
         return ' \n'.join(filtered_text)

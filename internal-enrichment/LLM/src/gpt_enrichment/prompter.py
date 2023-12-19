@@ -85,7 +85,6 @@ class GptClient:
     
     def make_request(self,helper:OpenCTIConnectorHelper,report_id:str, report_content:str,custom_prompt:bool = None):
         full_url = self.api_getaway.format(report_id)
-        print("Making request to {}".format(full_url))
         self.helper.log_debug("Making request to {}".format(full_url))
         self.helper.log_info("Making request to {}".format(full_url))
         headers = {"Content-Type": "application/json; charset=utf-8"}
@@ -251,7 +250,8 @@ class GptClient:
 
         self.clear_queue()
 
-        print("Sleeping for 10 seconds before making request")
+
+        self.helper.log_info("Sleeping for 10 seconds before making request")
         
 
 
