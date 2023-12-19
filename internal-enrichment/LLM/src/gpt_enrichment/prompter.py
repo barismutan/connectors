@@ -7,6 +7,10 @@ import requests
 from requests_auth_aws_sigv4 import AWSSigV4
 import json
 import random
+import logging
+logging.getLogger('boto').setLevel(logging.WARNING)
+logging.getLogger('boto3').setLevel(logging.WARNING)
+logging.getLogger('botocore').setLevel(logging.WARNING)
 
 class GptClient:
     def __init__(self, api_getaway:str, output_queue:str,helper:OpenCTIConnectorHelper):
