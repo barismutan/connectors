@@ -13,12 +13,18 @@ class BlogFetcher:
             'Sec-Fetch-Dest': 'document',
         }
 
-    def get_html(self,helper: OpenCTIConnectorHelper, url : str) -> str:
+    def get_html(self,helper: OpenCTIConnectorHelper, url : str) -> str: #TODO:add check here to see if report response status == 200
         helper.log_debug(f"Fetching blog from {url}")
-        blog_html = requests.get(url, headers=self.EXTERNAL_HEADERS).text
+        response = requests.get(url, headers=self.EXTERNAL_HEADERS)
+        blog_html = response.text
         helper.log_debug(f"html:\n{blog_html}")
+        if response.status_code != 200:
+            raise FetchUnsuccessfulException(f"Fetch unsuccessful. Status code: {response.status_code}")
         return blog_html
 
 
+class FetchUnsuccessfulException(Exception):
+    def __init__(self, message):
+        super().__init__(message)
 
     
