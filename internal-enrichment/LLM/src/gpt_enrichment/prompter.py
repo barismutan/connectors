@@ -29,14 +29,16 @@ class GptClient:
         MaxNumberOfMessages=1,
         VisibilityTimeout=60,
         WaitTimeSeconds=receive_wait_time
-    )
+        )
+        
         while time_elapsed<=total_wait_time:
             self.helper.log_debug("Response from queue:")
             self.helper.log_debug(json.dumps(response,indent=4))
             if response.get('Messages') != None:
                 self.helper.log_debug("Received message:")
                 self.helper.log_debug(json.dumps(response,indent=4))
-                #delete message
+                #delete message-----
+                print("Deleting message...")
                 self.sqs_client.delete_message(
                     QueueUrl=self.output_queue,
                     ReceiptHandle=response['Messages'][0]['ReceiptHandle']
@@ -88,9 +90,10 @@ class GptClient:
         return response
     
     def make_request(self,helper:OpenCTIConnectorHelper,report_id:str, report_content:str,custom_prompt:bool = None):
+        # random_number=random.randint(0,100)
         full_url = self.api_getaway.format(report_id)
         self.helper.log_debug("Making request to {}".format(full_url))
-        self.helper.log_info("Making request to {}".format(full_url))
+        
         headers = {"Content-Type": "application/json; charset=utf-8"}
 
         # Through REST Requests
