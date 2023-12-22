@@ -17,12 +17,12 @@ class TestEntityValidation(unittest.TestCase):
 
         blacklist = []
         whitelist = []
-        with open("Blacklist.csv",'r', encoding='utf-8') as f:
+        with open("tests/Blacklist.csv",'r', encoding='utf-8') as f:
             reader = csv.reader(f)
             for row in reader:
                 blacklist.append(row[0])
 
-        with open("Whitelist.csv",'r', encoding='utf-8') as f:
+        with open("tests/Whitelist.csv",'r', encoding='utf-8') as f:
             reader = csv.reader(f)
             for row in reader:
                 whitelist.append(row[0])
@@ -31,7 +31,6 @@ class TestEntityValidation(unittest.TestCase):
         self.whitelist = whitelist
         self.blacklist = blacklist
         self.entities = []
-
 
 
     def test_in_blacklist(self):
@@ -305,6 +304,5 @@ class TestEntityValidation(unittest.TestCase):
 
 
 if __name__ == '__main__':
-    unittest.main()
+    unittest.main(exit= False)
     print("hello")
-
