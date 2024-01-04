@@ -146,6 +146,9 @@ class ResponseBundleBuilder:
     
     def _create_victim_organization(self) -> stix2.Identity:
         """Create organization for the report."""
+        if self.llm_response['victim_organization'] is None or self.llm_response['victim_organization']=="":
+            return []
+        
         return [create_organization(
             self.llm_response['victim_organization'],
             self.author
@@ -305,14 +308,7 @@ class ResponseBundleBuilder:
         
 
 
-        # Create observations.
-        observations = self._create_observations(self.external_references)
 
-
-        
-        # Get indicators, create YARA indicators and to bundle.
-        indicators = [o.indicator for o in observations if o.indicator is not None]
-        bundle_objects.extend(indicators)
 
         print("Bundle objects before:")
         print(bundle_objects)
@@ -320,6 +316,12 @@ class ResponseBundleBuilder:
         bundle_objects=self.entity_validator.entity_validation()
         print("Bundle objects after:")
         print(bundle_objects)
+        
+        # Create observations.
+        observations = self._create_observations(self.external_references)
+        # Get indicators, create YARA indicators and to bundle.
+        indicators = [o.indicator for o in observations if o.indicator is not None]
+        bundle_objects.extend(indicators)
         
 
         # Get observables and add to bundle.

@@ -224,13 +224,10 @@ class EntityValidation:
                 #entity_updated_confidence = self.__change_confidence(entity, 0)
 
                 #create the label "found-in-intrusion-set" and add it to the entity.
-                label = self.opencti_helper.api.label.create(
-                    value="found-in-intrusion-set",
-                    color="#ffa500"
-                )
+                
 
-                entity_updated = entity.new_version(labels = [label['id']])
-                self.created_labels.append(label)
+                entity_updated = entity.new_version(labels = ["found-in-intrusion-set"])
+
                 #accept the data as it is.
                 return entity_updated
             return None #Not found in other types too.
@@ -250,13 +247,10 @@ class EntityValidation:
 
                 #entity_updated_confidence = self.__change_confidence(entity, 0)
                 #create the label "found-in-intrusion-set" and add it to the entity.
-                label = self.opencti_helper.api.label.create(
-                    value="found-in-intrusion-set",
-                    color="#ffa500",
-                )
+                
+                
+                entity_updated = entity.new_version(labels = ["found-in-intrusion-set"])
 
-                entity_updated = entity.new_version(labels = [label['id']])
-                self.created_labels.append(label)
                 #accept the data as it is.
                 return entity_updated
             return None #Not found in other types too.
@@ -269,14 +263,10 @@ class EntityValidation:
                 #set confidence to 0.
                 #entity_updated_confidence = self.__change_confidence(entity, 0)
 
-                #create the label "found-in-malware" and add it to the entity.
-                label = self.opencti_helper.api.label.create(
-                    value="found-in-malware",
-                    color="#ffa500",
-                )
+                
 
-                entity_updated = entity.new_version(labels = [label['id']])
-                self.created_labels.append(label)
+                entity_updated = entity.new_version(labels = ["found-in-intrusion-set"])
+
                 #accept the data as it is.
                 return entity_updated
             
@@ -287,14 +277,10 @@ class EntityValidation:
                 #set confidence to 0.
                 #entity_updated_confidence = self.__change_confidence(entity, 0)
 
-                #create the label "found-in-tool" and add it to the entity.
-                label = self.opencti_helper.api.label.create(
-                    value="found-in-tool",
-                    color="#ffa500",
-                )
 
-                entity_updated = entity.new_version(labels = [label['id']])
-                self.created_labels.append(label)
+
+                entity_updated = entity.new_version(labels = ["found-in-tool"])
+
                 #accept the data as it is.
                 return entity_updated
             return None #Not found in other types too.
@@ -377,7 +363,8 @@ class EntityValidation:
                     #entity_updated_confidence = self.__change_confidence(entity, 0)
                     list_result.append(entity_current)
 
-        for label in self.created_labels: #add all of the created labels to the entity bundle
-            list_result.append(label)
+        # for label in self.created_labels: #add all of the created labels to the entity bundle
+        #     list_result.append(label)
+        #NOTE: Labels are not STIX objects so they cannot be added to the bundle, their ids are added in the object's labels field.
 
         return list_result
