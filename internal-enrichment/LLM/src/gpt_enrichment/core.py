@@ -240,6 +240,7 @@ class GptEnrichmentConnector:
                     object_markings=[],
                     confidence=0,
                     author_identity=author_identity,
+                    entity_validator=self.entity_validator
                 )
                 bundle=builder.build()
                 self.send_bundle(bundle)
