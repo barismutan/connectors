@@ -13,6 +13,8 @@ from .regex_extract import RegexExtractor
 from threading import Lock
 from gpt_enrichment.utils import *
 from .builder import ResponseBundleBuilder
+import boto3
+from .entity_validation import EntityValidation
 
 
 class GptEnrichmentConnector:
@@ -90,20 +92,35 @@ class GptEnrichmentConnector:
         self.lock = Lock()
         self.preprocessor= Preprocessor(self.helper)
         self.postprocessor= Postprocessor(self.helper)
-        
-
-        
 
         if not self.connector_dockerized:
             self.helper.connector_config['connection']['host']='localhost'
-        
 
-        
-
-        
-
-        
         self.regex_extractor=RegexExtractor()
+        
+        s3_bucket_name=get_config_variable(
+            "GPT_ENRICHMENT_S3_BUCKET_NAME", ["gpt_enrichment", "s3_bucket_name"], config, False, ""
+        ) #NEW
+        
+        s3_whitelist_key=get_config_variable(
+            "GPT_ENRICHMENT_S3_WHITELIST_KEY", ["gpt_enrichment", "s3_whitelist_key"], config, False, ""
+        ) #NEW
+        
+        s3_blacklist_key=get_config_variable(
+            "GPT_ENRICHMENT_S3_BLACKLIST_KEY", ["gpt_enrichment", "s3_blacklist_key"], config, False, ""
+        ) #NEW
+            
+        
+        s3_bucket = boto3.resource('s3').Bucket(s3_bucket_name)
+        whitelist = [line.strip() for line in s3_bucket.Object(s3_whitelist_key).get()['Body'].read().decode('utf-8').splitlines()]
+        blacklist = [line.strip() for line in s3_bucket.Object(s3_blacklist_key).get()['Body'].read().decode('utf-8').splitlines()]
+        
+        self.entity_validator=EntityValidation(whitelist,blacklist,[],self.helper)
+        
+        
+        
+        #get the whitelist
+    
 
 
     def run(self):
@@ -223,6 +240,7 @@ class GptEnrichmentConnector:
                     object_markings=[],
                     confidence=0,
                     author_identity=author_identity,
+                    entity_validator=self.entity_validator
                 )
                 bundle=builder.build()
                 self.send_bundle(bundle)

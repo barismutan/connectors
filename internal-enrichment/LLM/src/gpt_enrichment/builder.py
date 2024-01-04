@@ -2,6 +2,7 @@ import stix2
 from typing import List
 from gpt_enrichment.utils import *
 from stix2.v21 import _DomainObject, _Observable  # type: ignore
+from .entity_validation import EntityValidation
 
 class Observation(NamedTuple):
     """Observation."""
@@ -10,7 +11,7 @@ class Observation(NamedTuple):
     indicator: Optional[stix2.Indicator]
     relationship: Optional[stix2.Relationship]
 class ResponseBundleBuilder:
-    def __init__(self, llm_response,author,object_markings,confidence,report,external_references,duplicate_report,author_identity):
+    def __init__(self, llm_response,author,object_markings,confidence,report,external_references,duplicate_report,author_identity,entity_validator: EntityValidation):
         self.llm_response = llm_response
         self.author = author
         self.object_markings=object_markings
@@ -26,6 +27,8 @@ class ResponseBundleBuilder:
         }
         self.duplicate_report=duplicate_report
         self.author_identity=author_identity
+        self.entity_validator=entity_validator
+        
         
     def _create_authors(self) -> List[stix2.Identity]:
         """Create author(s) for the report."""
@@ -143,6 +146,9 @@ class ResponseBundleBuilder:
     
     def _create_victim_organization(self) -> stix2.Identity:
         """Create organization for the report."""
+        if self.llm_response['victim_organization'] is None or self.llm_response['victim_organization']=="":
+            return []
+        
         return [create_organization(
             self.llm_response['victim_organization'],
             self.author
@@ -253,6 +259,8 @@ class ResponseBundleBuilder:
             object_markings=None,
             x_opencti_report_status=None,
         )]
+        
+    
     
     
             
@@ -265,6 +273,8 @@ class ResponseBundleBuilder:
         # Create author(s) and add to bundle.
         # authors = self._create_authors()
         # bundle_objects.extend(authors)
+        
+        #Creating entities
 
         # Create intrusion sets and add to bundle.
         intrusion_sets = self._create_intrusion_sets()
@@ -277,6 +287,50 @@ class ResponseBundleBuilder:
         #Create victim organization and add to bundle
         victim_organization=self._create_victim_organization()
         bundle_objects.extend(victim_organization)
+        
+        # Create target sectors and add to bundle.
+        target_sectors = self._create_target_sectors()
+        bundle_objects.extend(target_sectors)
+
+        # Create target countries and add to bundle.
+        target_countries = self._create_target_countries()
+        bundle_objects.extend(target_countries)
+        
+        #Create target regions and add to bundle
+        target_regions=self._create_target_regions()
+        bundle_objects.extend(target_regions)
+
+
+             
+        # Create vulnerabilities and add to bundle.
+        vulnerabilities = self._create_vulnerabilities()
+        bundle_objects.extend(vulnerabilities)
+        
+
+
+
+
+        print("Bundle objects before:")
+        print(bundle_objects)
+        self.entity_validator.entities=bundle_objects #TODO: this is a workaround since the entity_validation method rn doesn't take any arguments
+        bundle_objects=self.entity_validator.entity_validation()
+        print("Bundle objects after:")
+        print(bundle_objects)
+        
+        # Create observations.
+        observations = self._create_observations(self.external_references)
+        # Get indicators, create YARA indicators and to bundle.
+        indicators = [o.indicator for o in observations if o.indicator is not None]
+        bundle_objects.extend(indicators)
+        
+
+        # Get observables and add to bundle.
+        observables = [o.observable for o in observations if o.observable is not None]
+        bundle_objects.extend(observables)
+
+
+        #Creating relationships
+        
         
         malwares_targets_organization=create_targets_relationships(
             self.author,
@@ -297,40 +351,39 @@ class ResponseBundleBuilder:
         )
         
         bundle_objects.extend(intrusion_sets_targets_organization)
-        
-        
-        
-        
 
-        # Intrusion sets use malwares and add to bundle.
-        intrusion_sets_use_malwares = self._create_uses_relationships(
-            intrusion_sets, malwares
+        # Get observation relationships and add to bundle.
+        indicators_based_on_observables = [
+            o.relationship for o in observations if o.relationship is not None
+        ]
+        bundle_objects.extend(indicators_based_on_observables)
+
+        # Indicator indicates entities and add to bundle.
+        indicator_indicates_intrusion_sets=[]
+        indicator_indicates_malwares=[]
+        if len(intrusion_sets) == 1:
+            indicator_indicates_intrusion_sets = self._create_indicates_relationships(
+                indicators, intrusion_sets
+            )
+            bundle_objects.extend(indicator_indicates_intrusion_sets)
+        if len(malwares) == 1:
+            
+            indicator_indicates_malwares = self._create_indicates_relationships(
+                indicators, malwares
+            )
+            bundle_objects.extend(indicator_indicates_malwares)
+            
+        # Intrusion sets target vulnerabilities and add to bundle.
+        intrusion_sets_target_vulnerabilities = self._create_targets_relationships(
+            intrusion_sets, vulnerabilities
         )
-        bundle_objects.extend(intrusion_sets_use_malwares)
+        bundle_objects.extend(intrusion_sets_target_vulnerabilities)
 
-        # Create target sectors and add to bundle.
-        target_sectors = self._create_target_sectors()
-        bundle_objects.extend(target_sectors)
-
-        # Intrusion sets target sectors and add to bundle.
-        intrusion_sets_target_sectors = self._create_targets_relationships(
-            intrusion_sets, target_sectors
+        # Malwares target vulnerabilities and add to bundle.
+        malwares_target_vulnerabilities = self._create_targets_relationships(
+            malwares, vulnerabilities
         )
-        bundle_objects.extend(intrusion_sets_target_sectors)
-
-        # Malwares target sectors and add to bundle.
-        malwares_target_sectors = self._create_targets_relationships(
-            malwares, target_sectors
-        )
-        bundle_objects.extend(malwares_target_sectors)
-
-        # Create target countries and add to bundle.
-        target_countries = self._create_target_countries()
-        bundle_objects.extend(target_countries)
-        
-        #Create target regions and add to bundle
-        target_regions=self._create_target_regions()
-        bundle_objects.extend(target_regions)
+        bundle_objects.extend(malwares_target_vulnerabilities)
 
         # Intrusion sets target countries and add to bundle.
         intrusion_sets_target_countries = self._create_targets_relationships(
@@ -381,55 +434,25 @@ class ResponseBundleBuilder:
         )
         
         bundle_objects.extend(organization_related_to_country)
-             
-        # Create vulnerabilities and add to bundle.
-        vulnerabilities = self._create_vulnerabilities()
-        bundle_objects.extend(vulnerabilities)
         
-        # Intrusion sets target vulnerabilities and add to bundle.
-        intrusion_sets_target_vulnerabilities = self._create_targets_relationships(
-            intrusion_sets, vulnerabilities
+        # Intrusion sets target sectors and add to bundle.
+        intrusion_sets_target_sectors = self._create_targets_relationships(
+            intrusion_sets, target_sectors
         )
-        bundle_objects.extend(intrusion_sets_target_vulnerabilities)
+        bundle_objects.extend(intrusion_sets_target_sectors)
 
-        # Malwares target vulnerabilities and add to bundle.
-        malwares_target_vulnerabilities = self._create_targets_relationships(
-            malwares, vulnerabilities
+        # Malwares target sectors and add to bundle.
+        malwares_target_sectors = self._create_targets_relationships(
+            malwares, target_sectors
         )
-        bundle_objects.extend(malwares_target_vulnerabilities)
+        bundle_objects.extend(malwares_target_sectors)
 
-        # Create observations.
-        observations = self._create_observations(self.external_references)
+        # Intrusion sets use malwares and add to bundle.
+        intrusion_sets_use_malwares = self._create_uses_relationships(
+            intrusion_sets, malwares
+        )
+        bundle_objects.extend(intrusion_sets_use_malwares)
 
-        # Get observables and add to bundle.
-        observables = [o.observable for o in observations if o.observable is not None]
-        bundle_objects.extend(observables)
-        
-        # Get indicators, create YARA indicators and to bundle.
-        indicators = [o.indicator for o in observations if o.indicator is not None]
-        bundle_objects.extend(indicators)
-
-        # Get observation relationships and add to bundle.
-        indicators_based_on_observables = [
-            o.relationship for o in observations if o.relationship is not None
-        ]
-        bundle_objects.extend(indicators_based_on_observables)
-
-        # Indicator indicates entities and add to bundle.
-        indicator_indicates_intrusion_sets=[]
-        indicator_indicates_malwares=[]
-        if len(intrusion_sets) == 1:
-            indicator_indicates_intrusion_sets = self._create_indicates_relationships(
-                indicators, intrusion_sets
-            )
-            bundle_objects.extend(indicator_indicates_intrusion_sets)
-        if len(malwares) == 1:
-            
-            indicator_indicates_malwares = self._create_indicates_relationships(
-                indicators, malwares
-            )
-            bundle_objects.extend(indicator_indicates_malwares)
-        
 
         # Create object references for the report.
         object_refs = create_object_refs(
